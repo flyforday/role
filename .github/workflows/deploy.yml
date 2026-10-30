@@ -28,9 +28,15 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      - name: Vérifier la présence du jeton Cloudflare
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "::error::Secret CLOUDFLARE_API_TOKEN absent (à créer dans Repository secrets)"; exit 1; fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       - name: Déployer le Worker « role » (uniquement lui)
         working-directory: apps/worker
         run: npx wrangler deploy --name role
+        # le jeton doit être un secret de dépôt (Repository secrets), sans espace ni retour à la ligne
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
