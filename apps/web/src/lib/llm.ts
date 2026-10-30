@@ -37,7 +37,7 @@ async function relay(messages: ChatMessage[], options: LlmCallOptions, settings:
         json: options.json,
         gameId,
         byok,
-        temperature: options.purpose === 'summary' ? 0.3 : 0.9,
+        temperature: options.purpose === 'summary' ? 0.3 : 0.75,
         maxTokens: options.purpose === 'summary' ? 900 : options.purpose === 'world' ? 2000 : 1500,
       }),
       signal: options.signal,
