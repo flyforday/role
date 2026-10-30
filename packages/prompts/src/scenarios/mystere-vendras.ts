@@ -16,7 +16,8 @@ export const mystereVendras: Scenario = {
   tone: 'Sombre et mystérieux',
   blurb:
     "Une vieille comtesse veuve engage les héros pour rapporter un médaillon de famille des ruines de son manoir, au cœur d'une forêt ensorcelée. Puis sa jeune nièce les engage à son tour… Trois missions en apparence banales, et une sorcière qui tire les fils depuis le début.",
-  players: '2 à 5 joueurs, niveau 1',
+  players: '2 à 5 joueurs (seul : avec un ou deux compagnons), niveau 1',
+  minPlayers: 2,
   duration: 'Campagne de 3 épisodes, environ 6 heures',
   setting:
     "Brevnandra, petite ville bourgeoise enrichie par ses scieries et les pierres précieuses des montagnes voisines, et sa grande voisine Valnandra, cité marchande au port fluvial bâtie sur d'anciennes cryptes. Plus au nord, l'ancien domaine des Vendras : une forêt de sapins noirs noyée de brume qui entoure les ruines d'un manoir incendié il y a vingt ans par des créatures démoniaques.",

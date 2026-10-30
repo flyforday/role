@@ -72,7 +72,7 @@ export function useSoloGame(initial: GameState): GameController {
     dice,
     error,
     isHost: true,
-    controlledIds: state.characters.map((c) => c.id),
+    controlledIds: state.characters.filter((c) => !c.companion).map((c) => c.id),
     pending: [],
     canUndo: undoStack.length > 0 && !busy,
     submit,

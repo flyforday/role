@@ -4,9 +4,11 @@ import {
   abilityCheck,
   addLog,
   applyChanges,
+  attackFromText,
   defaultRng,
   describeAdjustment,
   describeRejection,
+  isConscious,
   newBudget,
   resolveRound,
   type ChangeLimits,
@@ -82,7 +84,12 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
   // 1. Combat : le code résout les attaques et les ripostes avant que le MJ ne raconte.
   const codeEvents: string[] = [];
   if (state.combat) {
-    const attacks = input.actions.filter((a) => a.kind === 'attack').map((a) => ({ characterId: a.characterId, targetId: a.targetId ?? '' }));
+    // une attaque décrite en texte libre (« je frappe Bodin ») compte comme une attaque
+    const attacks = input.actions.flatMap((a) => {
+      if (a.kind === 'attack') return [{ characterId: a.characterId, targetId: a.targetId ?? '' }];
+      const target = a.kind === 'action' ? attackFromText(state, a.text) : null;
+      return target ? [{ characterId: a.characterId, targetId: target.id }] : [];
+    });
     const round = resolveRound(state, attacks, rng);
     state = round.state;
     if (round.events.length) {
@@ -130,6 +137,10 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
     const pc = state.characters.find((c) => c.id === req.character_id);
     if (!pc) {
       rejected.push(`Le jet demandé pour « ${req.character_id} » a été refusé car ce personnage n'existe pas.`);
+      break;
+    }
+    if (!isConscious(pc)) {
+      rejected.push(`Le jet demandé pour ${pc.name} (${req.reason}) a été refusé : ce personnage est inconscient.`);
       break;
     }
     rolls++;

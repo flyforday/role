@@ -137,3 +137,22 @@ describe('résumé glissant', () => {
     expect(r).toBe(s);
   });
 });
+
+describe('runTurn en combat', () => {
+  it('une attaque décrite en texte libre est résolue par le code', async () => {
+    const start = applyChanges(sampleState(), [{ op: 'start_combat', enemies: [{ name: 'Bodin des Rois', hp: 30, defense: 5 }] }], { rng: seededRng(3) }).state;
+    const llm = scripted('{"narration":"Tes dagues sifflent."}');
+    const r = await runTurn({ state: start, actions: action('Je frappe Bodin avec mes dagues'), llm, rng: seededRng(5) });
+    expect(r.state.log.some((l) => l.kind === 'combat' && l.text.startsWith('Lyra'))).toBe(true);
+  });
+
+  it("refuse un jet pour un personnage inconscient", async () => {
+    const state = sampleState();
+    state.characters[0].hp = 0;
+    state.characters[0].conditions.push('inconscient');
+    const llm = scripted(JSON.stringify({ narration: 'Bodin te toise.', roll_request: { character_id: 'pj_lyra', ability: 'charisme', difficulty: 8, reason: 'résister au charme' } }));
+    const r = await runTurn({ state, actions: action('Je reprends mes esprits'), llm, rng: seededRng(1) });
+    expect(llm.calls).toHaveLength(1);
+    expect(r.rejected.some((x) => x.includes('inconscient'))).toBe(true);
+  });
+});

@@ -82,9 +82,24 @@ export interface PlayerAttack {
   targetId: string;
 }
 
+const ATTACK_WORDS = /\b(attaqu\w*|frapp\w*|cogn\w*|poignard\w*|tranch\w*|transperc\w*|embroch\w*|egorg\w*|estoqu\w*|assomm\w*|tir\w* sur|lanc\w* (?:ma|mon|mes|une|un|sa|son) \w+ sur|decoch\w*|charg\w*|riposte\w*|abat\w*|plant\w* (?:ma|mon|mes) \w+)\b/;
+
 /**
- * Résout un round complet dans l'ordre d'initiative : les PJ qui ont déclaré une attaque frappent,
- * puis chaque ennemi encore debout attaque un PJ conscient choisi au hasard.
+ * Reconnaît une attaque décrite en texte libre pendant un combat (« je frappe Bodin avec mes dagues »).
+ * Renvoie l'ennemi visé (nommé dans le texte, sinon le premier debout), ou null si le texte ne décrit pas une attaque.
+ */
+export function attackFromText(state: GameState, text: string): Enemy | null {
+  if (!state.combat) return null;
+  const t = normalize(text);
+  if (!ATTACK_WORDS.test(t)) return null;
+  const alive = state.combat.enemies.filter((e) => e.hp > 0);
+  const named = alive.find((e) => normalize(e.name).split(/[^a-z0-9]+/).some((w) => w.length > 3 && t.includes(w)));
+  return named ?? alive[0] ?? null;
+}
+
+/**
+ * Résout un round complet dans l'ordre d'initiative : les PJ qui ont déclaré une attaque et les compagnons frappent,
+ * et chaque ennemi encore debout attaque un PJ conscient choisi au hasard.
  */
 export function resolveRound(input: GameState, attacks: PlayerAttack[], rng: Rng): { state: GameState; events: CombatEvent[] } {
   let state = structuredClone(input);
@@ -94,9 +109,10 @@ export function resolveRound(input: GameState, attacks: PlayerAttack[], rng: Rng
   for (const ref of state.combat.order) {
     if (!state.combat) break;
     if (ref.kind === 'pc') {
-      const attack = attacks.find((a) => a.characterId === ref.id);
-      if (!attack) continue;
       const pc = state.characters.find((c) => c.id === ref.id);
+      // un compagnon PNJ attaque de lui-même le premier ennemi encore debout
+      const attack = attacks.find((a) => a.characterId === ref.id) ?? (pc?.companion ? { characterId: ref.id, targetId: '' } : undefined);
+      if (!attack) continue;
       if (!pc || !isConscious(pc)) continue;
       let target = state.combat.enemies.find((e) => e.id === attack.targetId && e.hp > 0);
       target ??= state.combat.enemies.find((e) => e.hp > 0);

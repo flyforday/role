@@ -57,7 +57,11 @@ export function campaignSheet(state: GameState): string {
     `Voiles (thèmes traités hors champ) : ${c.veils.length ? c.veils.join(', ') : 'aucun'}`,
   ];
   if (c.specialRules?.trim()) lines.push(`Règles spéciales : ${c.specialRules.trim()}`);
-  lines.push(`Joueurs : ${state.characters.length > 1 ? 'groupe (vouvoiement collectif)' : 'un joueur seul (tutoiement)'}`);
+  const players = state.characters.filter((c) => !c.companion).length;
+  lines.push(`Joueurs : ${players > 1 ? 'groupe (vouvoiement collectif)' : 'un joueur seul (tutoiement)'}`);
+  const companions = state.characters.filter((c) => c.companion);
+  if (companions.length)
+    lines.push(`Compagnons PNJ (${companions.map((c) => c.name).join(', ')}) : tu les incarnes ; ils agissent, parlent et se battent d'eux-mêmes (le code résout leurs attaques), sans jamais voler la vedette aux joueurs ni décider à leur place.`);
   return lines.join('\n');
 }
 
@@ -70,7 +74,7 @@ export function stateExtract(state: GameState): string {
       .map((i) => `${i.name}${i.quantity && i.quantity > 1 ? ` ×${i.quantity}` : ''}${i.damage ? ` (${i.damage})` : ''}`)
       .join(', ');
     out.push(
-      `- [${pc.id}] ${pc.name}${pc.playerName ? ` (joué par ${pc.playerName})` : ''}, ${pc.concept}, niveau ${pc.level} — PV ${pc.hp}/${pc.maxHp}, Défense ${pc.defense}, Or ${pc.gold}` +
+      `- [${pc.id}] ${pc.name}${pc.companion ? ' (compagnon PNJ joué par toi, le MJ)' : pc.playerName ? ` (joué par ${pc.playerName})` : ''}, ${pc.concept}, niveau ${pc.level} — PV ${pc.hp}/${pc.maxHp}, Défense ${pc.defense}, Or ${pc.gold}` +
         `\n  Caractéristiques : ${abil}` +
         `\n  Arme : ${pc.weapon ?? 'aucune'} — Inventaire : ${inv || 'vide'}` +
         `\n  Conditions : ${pc.conditions.length ? pc.conditions.join(', ') : 'aucune'}` +

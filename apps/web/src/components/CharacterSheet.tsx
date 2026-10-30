@@ -11,7 +11,7 @@ export function CharacterSheet({ character, mine }: { character: Character; mine
           <h3 className="font-titre text-xl font-semibold text-parchemin-100">{c.name}</h3>
           <p className="text-xs text-parchemin-300">
             {c.concept} · niveau {c.level}
-            {c.playerName ? ` · ${c.playerName}` : ''}
+            {c.companion ? ' · compagnon (MJ)' : c.playerName ? ` · ${c.playerName}` : ''}
           </p>
         </div>
         <span className="text-xs text-parchemin-300" title="Défense">

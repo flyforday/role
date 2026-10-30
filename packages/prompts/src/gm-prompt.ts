@@ -58,6 +58,7 @@ export const GM_OUTPUT_SCHEMA = `SCHÉMA DE SORTIE (JSON strict, la clé "narrat
 }
 - Utilise uniquement les identifiants présents dans l'ÉTAT DU JEU (ou crée un nouvel id court en minuscules pour un nouveau PNJ, lieu ou quête).
 - Pendant un combat, les attaques des PJ et des ennemis sont résolues par le code : raconte les résultats fournis dans « ÉVÉNEMENTS DE COMBAT » sans les modifier et sans ajouter de dégâts pour ces attaques.
+- Si les ÉVÉNEMENTS DE COMBAT annoncent une défaite, le combat est terminé : raconte ses conséquences (capture, vol, réveil plus tard) sans demander de jet ni rejouer le combat.
 - Donne de l'XP (10 à 50) quand les joueurs résolvent une situation, et 50 à 150 pour une quête accomplie.`;
 
 export const ROLL_RESULT_INSTRUCTIONS = `Raconte maintenant la conséquence de ce jet, en respectant strictement son résultat (réussite ou échec). Ne redemande pas le même jet. Réponds avec le même schéma JSON.`;
