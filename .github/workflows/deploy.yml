@@ -28,14 +28,10 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
-      - name: Vérifier le jeton Cloudflare
+      - name: Vérifier la présence du jeton Cloudflare
         run: |
           TOKEN="$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
           if [ -z "$TOKEN" ]; then echo "::error::Secret CLOUDFLARE_API_TOKEN absent (à créer dans Repository secrets)"; exit 1; fi
-          echo "Longueur du jeton : ${#TOKEN} caractères, préfixe : ${TOKEN:0:5}"
-          for url in "https://api.cloudflare.com/client/v4/user/tokens/verify" "https://api.cloudflare.com/client/v4/accounts/816c2447a505b8e24917ffe632057fdd/tokens/verify"; do
-            curl -s "$url" -H "Authorization: Bearer $TOKEN" | jq -c '{success, errors, status: .result.status}'
-          done
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       - name: Déployer le Worker « role » (uniquement lui)
