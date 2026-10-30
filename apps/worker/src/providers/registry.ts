@@ -7,7 +7,7 @@ export const PROVIDER_NAMES = ['gemini', 'groq', 'openrouter'] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
 export const DEFAULT_MODELS: Record<ProviderName, string> = {
-  gemini: 'gemini-2.5-flash',
+  gemini: 'gemini-flash-latest',
   groq: 'llama-3.3-70b-versatile',
   openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
 };
@@ -16,7 +16,12 @@ export function makeProvider(name: ProviderName, apiKey: string, model: string, 
   switch (name) {
     case 'gemini': {
       const budget = env.GEMINI_THINKING_BUDGET;
-      return new GeminiProvider({ apiKey, model, thinkingBudget: budget !== undefined && budget !== '' ? Number(budget) : undefined });
+      return new GeminiProvider({
+        apiKey,
+        model,
+        thinkingLevel: env.GEMINI_THINKING_LEVEL || undefined,
+        thinkingBudget: budget !== undefined && budget !== '' ? Number(budget) : undefined,
+      });
     }
     case 'groq':
       return groq(apiKey, model);
@@ -41,7 +46,11 @@ export function configuredProviders(env: Env): LLMProvider[] {
     groq: env.GROQ_MODEL,
     openrouter: env.OPENROUTER_MODEL,
   };
+  // Un même fournisseur peut lister plusieurs modèles (« a,b ») : on bascule de l'un à l'autre.
   return [...new Set(order)]
     .filter((name) => keys[name])
-    .map((name) => makeProvider(name, keys[name]!, models[name] || DEFAULT_MODELS[name], env));
+    .flatMap((name) => {
+      const list = (models[name] || DEFAULT_MODELS[name]).split(',').map((m) => m.trim()).filter(Boolean);
+      return list.map((model) => makeProvider(name, keys[name]!, model, env));
+    });
 }

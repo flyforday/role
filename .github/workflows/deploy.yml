@@ -1,6 +1,6 @@
 name: Déploiement Cloudflare
 
-# Déploie le Worker « role » (relais IA + application web). Lancement manuel ou à chaque push sur main.
+# Déploie le Worker « role » (relais IA + application web) puis le front seul sur Pages (veillee.pages.dev). Lancement manuel ou à chaque push sur main.
 # Secrets GitHub requis : CLOUDFLARE_API_TOKEN (droit « Workers Scripts: Edit ») et CLOUDFLARE_ACCOUNT_ID.
 # Variables GitHub facultatives pour le multijoueur : VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY.
 on:
@@ -28,9 +28,30 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
-      - name: Déployer le Worker « role » (uniquement lui)
-        working-directory: apps/worker
-        run: npx wrangler deploy --name role
+          # Le front publié sur Pages appelle le relais du Worker « role ».
+          VITE_WORKER_URL: https://role.leo-lemaire.workers.dev
+      - name: Vérifier la présence du jeton Cloudflare
+        run: |
+          TOKEN="$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
+          if [ -z "$TOKEN" ]; then echo "::error::Secret CLOUDFLARE_API_TOKEN absent (à créer dans Repository secrets)"; exit 1; fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Déployer le Worker « role » (uniquement lui)
+        working-directory: apps/worker
+        # le jeton est nettoyé des espaces et retours à la ligne éventuels collés avec le secret
+        run: |
+          export CLOUDFLARE_API_TOKEN="$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
+          npx wrangler deploy --name role
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Publier le front sur Cloudflare Pages (projet « veillee », jamais celui de Vellune)
+        working-directory: apps/web
+        run: |
+          export CLOUDFLARE_API_TOKEN="$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
+          if ! npx wrangler pages project list | grep -qw veillee; then
+            npx wrangler pages project create veillee --production-branch main
+          fi
+          npx wrangler pages deploy dist --project-name veillee --branch main --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 816c2447a505b8e24917ffe632057fdd

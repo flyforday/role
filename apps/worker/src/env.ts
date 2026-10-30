@@ -2,6 +2,7 @@ export interface Env {
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
   GEMINI_THINKING_BUDGET?: string;
+  GEMINI_THINKING_LEVEL?: string;
   GROQ_API_KEY?: string;
   GROQ_MODEL?: string;
   OPENROUTER_API_KEY?: string;

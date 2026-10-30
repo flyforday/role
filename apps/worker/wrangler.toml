@@ -1,13 +1,23 @@
 name = "role"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
+# Compte Cloudflare de Léo (identifiant public, pas un secret).
+account_id = "816c2447a505b8e24917ffe632057fdd"
+# Ne pas effacer les variables ajoutées dans le tableau de bord Cloudflare lors d'un déploiement.
+keep_vars = true
 
 # Variables non secrètes (modifiables sans redéployer le code via le tableau de bord Cloudflare).
 # Les clés d'API se déclarent avec `wrangler secret put GEMINI_API_KEY` (etc.), jamais ici.
 [vars]
 PROVIDER_ORDER = "gemini,groq,openrouter"
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_THINKING_BUDGET = "0"
+# Liste de modèles essayés dans l'ordre (séparés par des virgules). Le premier est l'alias
+# tenu à jour par Google vers le dernier Flash ; le second, plus léger, sert de secours.
+GEMINI_MODEL = "gemini-flash-latest,gemini-flash-lite-latest"
+# Réflexion des modèles Gemini 3 : "low" garde des réponses rapides (le défaut "high" peut
+# dépasser le délai et provoquer une erreur 524). Si le modèle refuse ce réglage, il est retiré.
+GEMINI_THINKING_LEVEL = "low"
+# Ancien réglage (Gemini 2.5), ignoré si GEMINI_THINKING_LEVEL est rempli.
+GEMINI_THINKING_BUDGET = ""
 GROQ_MODEL = "llama-3.3-70b-versatile"
 OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 # Origines autorisées (séparées par des virgules). "*" pour tout autoriser en développement.
