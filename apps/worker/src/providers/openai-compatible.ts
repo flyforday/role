@@ -33,6 +33,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
         stream: true,
         temperature: options.temperature ?? 0.9,
         max_tokens: options.maxTokens ?? 1500,
+        // Les modèles gpt-oss raisonnent avant de répondre : effort bas pour rester rapide.
+        ...(this.model.includes('gpt-oss') ? { reasoning_effort: 'low' } : {}),
       }),
       signal: options.signal,
     });
