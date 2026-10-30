@@ -6,3 +6,4 @@ export * from './orchestrator';
 export * from './summary';
 export * from './world';
 export * from './savefile';
+export * from './scenarios';

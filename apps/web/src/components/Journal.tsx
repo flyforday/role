@@ -1,8 +1,9 @@
-import { currentLocation, npcsHere, type GameState } from '@veillee/engine';
+import { currentLocation, currentScene, npcsHere, type GameState } from '@veillee/engine';
 import { Tag } from './ui';
 
 export function Journal({ state }: { state: GameState }) {
   const loc = currentLocation(state);
+  const scene = currentScene(state);
   const here = npcsHere(state);
   const active = state.quests.filter((q) => q.status === 'active');
   const done = state.quests.filter((q) => q.status !== 'active');
@@ -11,6 +12,11 @@ export function Journal({ state }: { state: GameState }) {
       <section>
         <h3 className="mb-1 font-titre text-lg font-semibold text-parchemin-100">📍 {loc?.name ?? 'Lieu inconnu'}</h3>
         {loc?.description && <p className="text-parchemin-300">{loc.description}</p>}
+        {scene && state.scenario && (
+          <p className="mt-1 text-xs text-parchemin-300/70">
+            📖 {state.scenario.scenario.title} — {scene.title} · {state.scenario.scenario.credits.author}
+          </p>
+        )}
       </section>
       <section>
         <h3 className="mb-1 font-titre text-lg font-semibold text-parchemin-100">Journal de quête</h3>
