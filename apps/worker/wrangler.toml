@@ -16,3 +16,9 @@ RATE_LIMIT_PER_IP_PER_MIN = "20"
 RATE_LIMIT_PER_GAME_PER_MIN = "12"
 RATE_LIMIT_PER_IP_PER_DAY = "600"
 MAX_OUTPUT_TOKENS = "1500"
+
+# Le même Worker sert aussi l'application web (fichiers statiques de apps/web/dist) :
+# une seule adresse, pas de CORS, et /api/* est traité par le code du relais.
+# Construire le front avant `wrangler dev` / `wrangler deploy` : npm run build (à la racine).
+[assets]
+directory = "../web/dist"
