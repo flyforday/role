@@ -1,5 +1,7 @@
 /** Types du moteur de jeu. Tout ce qui est ici est sérialisable en JSON. */
 
+import type { ScenarioState } from './scenario';
+
 export const ABILITIES = ['force', 'agilite', 'endurance', 'intelligence', 'perception', 'charisme'] as const;
 export type Ability = (typeof ABILITIES)[number];
 
@@ -190,4 +192,6 @@ export interface GameState {
   combat: CombatState | null;
   turn: number;
   turnMode: TurnMode;
+  /** Scénario prêt à jouer suivi par le MJ (absent pour un monde généré). */
+  scenario?: ScenarioState;
 }

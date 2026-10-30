@@ -7,8 +7,9 @@ import {
   type GameState,
   type LogEntry,
   type LoreEntry,
+  type ScenarioScene,
 } from '@veillee/engine';
-import { GM_OUTPUT_SCHEMA, GM_SYSTEM_PROMPT, XCARD_INSTRUCTION } from './gm-prompt';
+import { GM_OUTPUT_SCHEMA, GM_SYSTEM_PROMPT, SCENARIO_INSTRUCTIONS, XCARD_INSTRUCTION } from './gm-prompt';
 
 export type ChatRole = 'system' | 'user' | 'assistant';
 export interface ChatMessage {
@@ -116,6 +117,46 @@ export function stateExtract(state: GameState): string {
   return out.join('\n');
 }
 
+/** Partie du scénario utile ce tour-ci : trame, scène en cours en entier, scènes accessibles, PNJ. */
+export function scenarioExtract(state: GameState): string | null {
+  const sc = state.scenario;
+  if (!sc) return null;
+  const { scenario } = sc;
+  const scene = scenario.scenes.find((s) => s.id === sc.currentSceneId);
+  const out: string[] = [`SCÉNARIO PRÊT À JOUER : « ${scenario.title} »`, SCENARIO_INSTRUCTIONS];
+  out.push(`Vérité cachée (MJ seulement) : ${scenario.secretPlot}`);
+  out.push(`Conseils pour adapter : ${scenario.gmAdvice}`);
+  out.push(`Déroulé : ${scenario.scenes.map((s) => `[${s.id}] ${s.title}${s.id === sc.currentSceneId ? ' (EN COURS)' : sc.visitedSceneIds.includes(s.id) ? ' (jouée)' : ''}`).join(' → ')}`);
+  if (scene) {
+    out.push(`SCÈNE EN COURS [${scene.id}] ${scene.title}${scene.ending ? ` (scène finale : ${scene.ending})` : ''}`);
+    out.push(`Ouverture : ${scene.readAloud}`);
+    out.push(`Notes du MJ : ${scene.gmNotes}`);
+    if (scene.checks?.length) {
+      out.push('Jets prévus :');
+      for (const c of scene.checks) out.push(`- ${c.situation} → ${c.ability} ${c.difficulty}. Réussite : ${c.success} Échec : ${c.failure}`);
+    }
+    if (scene.encounter) {
+      const e = scene.encounter;
+      out.push(`Combat prévu (${e.trigger}) : ${JSON.stringify(e.enemies)}${e.alternatives ? `\nAlternatives : ${e.alternatives}` : ''}`);
+    }
+    if (scene.rewards) out.push(`Récompenses prévues : ${scene.rewards}`);
+    const next = scene.exits
+      .map((x) => ({ exit: x, target: scenario.scenes.find((s) => s.id === x.to) }))
+      .filter((x): x is { exit: typeof x.exit; target: ScenarioScene } => !!x.target);
+    if (next.length) {
+      out.push('Sorties possibles :');
+      for (const { exit, target } of next) out.push(`- vers [${target.id}] ${target.title} quand : ${exit.when}\n  Ouverture de cette scène : ${target.readAloud}`);
+    }
+  }
+  const known = new Set(state.npcs.map((n) => n.id));
+  const pending = scenario.npcs.filter((n) => !known.has(n.id));
+  out.push('PNJ du scénario (id, motivation) :');
+  for (const n of scenario.npcs) {
+    out.push(`- [${n.id}] ${n.name} : ${n.motivation}${!known.has(n.id) && n.secret ? ` Secret : ${n.secret}` : ''}${pending.includes(n) ? ' (pas encore rencontré)' : ''}`);
+  }
+  return out.join('\n');
+}
+
 function nameFor(state: GameState, id: string): string {
   return state.characters.find((c) => c.id === id)?.name ?? state.combat?.enemies.find((e) => e.id === id)?.name ?? id;
 }
@@ -182,6 +223,7 @@ export function buildGmMessages(state: GameState, actions: PlayerAction[], optio
 
   const system = `${GM_SYSTEM_PROMPT}\n\n${GM_OUTPUT_SCHEMA}\n\n${campaignSheet(state)}`;
   const extract = stateExtract(state);
+  const scenario = scenarioExtract(state);
   const actionText = describeActions(state, actions);
 
   const turns = groupTurns(state.log.filter((e) => e.turn > state.summarizedThroughTurn)).slice(-recentTurns);
@@ -195,6 +237,7 @@ export function buildGmMessages(state: GameState, actions: PlayerAction[], optio
 
   const assemble = () => {
     const parts: string[] = [extract];
+    if (scenario) parts.push(scenario);
     if (summary) parts.push(`RÉSUMÉ DE L'HISTOIRE JUSQU'ICI\n${summary}`);
     if (lore.length) parts.push(`LORE PERTINENT\n${lore.map((l) => `- ${l.text}`).join('\n')}`);
     if (kept.length) parts.push(`DERNIERS TOURS\n${recentText(kept)}`);

@@ -3,6 +3,7 @@ import { clamp, findItem, grantXp, normalize, slugify } from './rules';
 import { makeId } from './ids';
 import { checkCombatEnd, startCombat, type EnemyInput } from './combat';
 import type { Rng } from './dice';
+import { enterScene, scenarioNpc } from './scenario';
 import { defaultRng } from './dice';
 
 /** Changements que le MJ IA peut proposer. Le code les valide avant de les appliquer. */
@@ -18,7 +19,8 @@ export type StateChange =
   | { op: 'flag'; key: string; value: FlagValue }
   | { op: 'xp'; target: string; delta: number; reason?: string }
   | { op: 'start_combat'; enemies: EnemyInput[] }
-  | { op: 'end_combat'; reason?: string };
+  | { op: 'end_combat'; reason?: string }
+  | { op: 'scene'; scene_id: string };
 
 export interface ChangeLimits {
   /** PV perdus au maximum par cible et par tour. */
@@ -322,6 +324,13 @@ export function applyChanges(input: GameState, changes: StateChange[], options: 
           if (data.status) existing.status = data.status;
           if (data.secret) (existing.secrets ??= []).push(data.secret);
           if (state.currentLocationId && existing.status === 'vivant') existing.locationId = state.currentLocationId;
+        } else if (scenarioNpc(state, data.id)) {
+          // PNJ prévu par le scénario : il arrive avec sa fiche complète.
+          const npc = scenarioNpc(state, data.id)!;
+          if (data.attitude) npc.attitude = data.attitude;
+          if (data.status) npc.status = data.status;
+          if (data.secret) (npc.secrets ??= []).push(data.secret);
+          state.npcs.push(npc);
         } else {
           if (!data.name) {
             reject(change, `nouveau PNJ « ${data.id} » sans nom`);
@@ -435,6 +444,28 @@ export function applyChanges(input: GameState, changes: StateChange[], options: 
         const alive = state.combat.enemies.filter((e) => e.hp > 0);
         if (alive.length) events.push(`Le combat prend fin (${alive.map((e) => e.name).join(', ')} encore debout).`);
         state.combat = null;
+        break;
+      }
+      case 'scene': {
+        const sc = state.scenario;
+        if (!sc) {
+          reject(change, 'cette partie ne suit pas de scénario');
+          break;
+        }
+        const scene = sc.scenario.scenes.find((x) => x.id === change.scene_id);
+        if (!scene) {
+          reject(change, `scène inconnue « ${change.scene_id} » (scènes : ${sc.scenario.scenes.map((x) => x.id).join(', ')})`);
+          break;
+        }
+        if (scene.id === sc.currentSceneId) {
+          reject(change, `le groupe est déjà dans la scène « ${scene.title} »`);
+          break;
+        }
+        if (state.combat) {
+          reject(change, 'impossible de changer de scène en plein combat (le combat doit d\'abord se terminer)');
+          break;
+        }
+        events.push(...enterScene(state, scene.id));
         break;
       }
       default: {

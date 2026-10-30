@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { GameState } from '@veillee/engine';
-import { WorldProposalSchema, buildWorldMessages, gameFromWorld, parseWith, type WorldPreferences, type WorldProposal } from '@veillee/prompts';
+import { gameFromScenario, type GameState, type Scenario } from '@veillee/engine';
+import { SCENARIOS, WorldProposalSchema, buildWorldMessages, gameFromWorld, parseWith, type WorldPreferences, type WorldProposal } from '@veillee/prompts';
 import { Button, Card, Field, Input, Spinner, TextArea } from '../components/ui';
 import { createLlm } from '../lib/llm';
 import { errorMessage } from '../lib/controller';
@@ -19,6 +19,7 @@ export function NewCampaign({ onCreated, onCancel, online }: { onCreated: (state
   const [rules, setRules] = useState('');
   const [ideas, setIdeas] = useState('');
   const [world, setWorld] = useState<WorldProposal | null>(null);
+  const [scenario, setScenario] = useState<Scenario | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,7 +107,40 @@ export function NewCampaign({ onCreated, onCancel, online }: { onCreated: (state
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4">
       <h1 className="font-titre text-4xl font-bold text-parchemin-100">{online ? 'Nouvelle partie en ligne' : 'Nouvelle campagne'}</h1>
-      <p className="text-parchemin-300">Décrivez l'aventure qui vous fait envie : le MJ vous proposera un monde original.</p>
+      <p className="text-parchemin-300">Choisissez un scénario prêt à jouer, que le MJ suivra en s'adaptant à vos choix, ou décrivez l'aventure qui vous fait envie pour qu'il invente un monde.</p>
+      <Card title="Scénarios prêts à jouer">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {SCENARIOS.map((sc) => (
+            <ScenarioCard key={sc.id} scenario={sc} active={scenario?.id === sc.id} onClick={() => setScenario(scenario?.id === sc.id ? null : sc)} />
+          ))}
+          <button
+            type="button"
+            onClick={() => setScenario(null)}
+            aria-pressed={!scenario}
+            className={`rounded-lg border p-3 text-left transition ${!scenario ? 'border-braise-500 bg-braise-500/10' : 'border-nuit-600 hover:border-parchemin-300'}`}
+          >
+            <p className="font-titre text-lg font-semibold text-parchemin-100">✦ Monde sur mesure</p>
+            <p className="mt-1 text-sm text-parchemin-300">Le MJ invente un monde et une aventure d'après vos envies.</p>
+          </button>
+        </div>
+      </Card>
+      {scenario && (
+        <Card title={scenario.title}>
+          <p className="text-parchemin-200">{scenario.pitch}</p>
+          <p className="mt-2 text-sm text-parchemin-300">
+            {scenario.genre} · {scenario.tone} · {scenario.players} · {scenario.duration}
+          </p>
+          <p className="mt-2 text-xs text-parchemin-300/70">
+            Auteur : {scenario.credits.author} — Licence : {scenario.credits.license}
+            {scenario.credits.source && (
+              <>
+                {' '}— <a className="underline" href={scenario.credits.source} target="_blank" rel="noreferrer">source</a>
+              </>
+            )}
+          </p>
+        </Card>
+      )}
+      {!scenario && (
       <Card>
         <div className="space-y-4">
           <Field label="Genre">
@@ -135,6 +169,7 @@ export function NewCampaign({ onCreated, onCancel, online }: { onCreated: (state
           </Field>
         </div>
       </Card>
+      )}
       <Card title="Sécurité de table">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Lignes : thèmes interdits" hint="Jamais abordés. Séparés par des virgules.">
@@ -154,9 +189,15 @@ export function NewCampaign({ onCreated, onCancel, online }: { onCreated: (state
         <Button variant="ghost" onClick={onCancel}>
           Annuler
         </Button>
-        <Button variant="primary" disabled={loading} onClick={() => propose()}>
-          {loading ? <Spinner label="Le MJ imagine votre monde…" /> : 'Proposer un monde ✦'}
-        </Button>
+        {scenario ? (
+          <Button variant="primary" onClick={() => onCreated(gameFromScenario(scenario, { lines: prefs.lines, veils: prefs.veils, specialRules: prefs.specialRules }))}>
+            Jouer ce scénario →
+          </Button>
+        ) : (
+          <Button variant="primary" disabled={loading} onClick={() => propose()}>
+            {loading ? <Spinner label="Le MJ imagine votre monde…" /> : 'Proposer un monde ✦'}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -171,6 +212,23 @@ function Chip({ active, children, onClick }: { active: boolean; children: string
       className={`rounded-full border px-3 py-1 text-sm transition ${active ? 'border-braise-500 bg-braise-500/15 text-braise-300' : 'border-nuit-600 text-parchemin-200 hover:border-parchemin-300'}`}
     >
       {children}
+    </button>
+  );
+}
+
+function ScenarioCard({ scenario, active, onClick }: { scenario: Scenario; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-lg border p-3 text-left transition ${active ? 'border-braise-500 bg-braise-500/10' : 'border-nuit-600 hover:border-parchemin-300'}`}
+    >
+      <p className="font-titre text-lg font-semibold text-parchemin-100">{scenario.title}</p>
+      <p className="mt-1 text-sm text-parchemin-300">{scenario.blurb}</p>
+      <p className="mt-2 text-xs text-parchemin-300/70">
+        {scenario.tone} · {scenario.duration}
+      </p>
     </button>
   );
 }

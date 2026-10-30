@@ -5,3 +5,4 @@ export * from './changes';
 export * from './combat';
 export * from './state';
 export { makeId } from './ids';
+export * from './scenario';

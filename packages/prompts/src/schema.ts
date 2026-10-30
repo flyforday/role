@@ -97,6 +97,7 @@ export const StateChangeSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('xp'), target: str.min(1), delta: intLike, reason: str.optional() }),
   z.object({ op: z.literal('start_combat'), enemies: z.array(EnemySchema).min(1) }),
   z.object({ op: z.literal('end_combat'), reason: str.optional() }),
+  z.object({ op: z.literal('scene'), scene_id: str.min(1) }),
 ]);
 
 /** Enveloppe de la réponse du MJ. Les changements sont validés un par un pour ne rejeter que les fautifs. */
