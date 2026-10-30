@@ -1,0 +1,22 @@
+name: Supprimer l'ancien projet Pages « veillee »
+
+# Ponctuel : supprime le projet Pages « veillee » (veillee-13r.pages.dev), remplacé par « veillee-role ».
+# Ne vise que ce projet, après vérification de son adresse ; ne touche jamais Vellune.
+on:
+  workflow_dispatch:
+
+jobs:
+  supprimer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier puis supprimer
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: 816c2447a505b8e24917ffe632057fdd
+        run: |
+          TOKEN="$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
+          API="https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/pages/projects/veillee"
+          SUB="$(curl -sS -H "Authorization: Bearer $TOKEN" "$API" | jq -r '.result.subdomain // empty')"
+          echo "Adresse du projet : $SUB"
+          if [ "$SUB" != "veillee-13r.pages.dev" ]; then echo "::error::Ce n'est pas le projet attendu, rien n'est supprimé"; exit 1; fi
+          curl -sS -X DELETE -H "Authorization: Bearer $TOKEN" "$API" | jq '{success, errors}'
