@@ -1,0 +1,21 @@
+{
+  "name": "veillee",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Veillée — jeu de rôle sur table avec Maître du Jeu IA",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @veillee/web",
+    "dev:worker": "npm run dev -w @veillee/worker",
+    "build": "npm run build -w @veillee/web",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/engine && tsc -p packages/prompts && tsc -p apps/worker && tsc -p apps/web"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
