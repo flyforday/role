@@ -3,6 +3,8 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 # Compte Cloudflare de Léo (identifiant public, pas un secret).
 account_id = "816c2447a505b8e24917ffe632057fdd"
+# Ne pas effacer les variables ajoutées dans le tableau de bord Cloudflare lors d'un déploiement.
+keep_vars = true
 
 # Variables non secrètes (modifiables sans redéployer le code via le tableau de bord Cloudflare).
 # Les clés d'API se déclarent avec `wrangler secret put GEMINI_API_KEY` (etc.), jamais ici.
