@@ -18,6 +18,8 @@ describe('bibliothèque de scénarios', () => {
       it('cite son auteur et sa licence', () => {
         expect(sc.credits.author).not.toBe('');
         expect(sc.credits.license).not.toBe('');
+        // une adaptation d'une œuvre CC BY-SA doit garder la même licence et citer sa source
+        if (sc.credits.source?.includes('rolis.net')) expect(sc.credits.license).toContain('CC BY-SA');
       });
 
       it('a des références internes cohérentes', () => {
