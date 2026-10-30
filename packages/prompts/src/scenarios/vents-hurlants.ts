@@ -17,7 +17,8 @@ export const ventsHurlants: Scenario = {
   tone: 'Horreur glacée',
   blurb:
     "Dans les montagnes des Tressardières, les héros traquent des pillards jusqu'à une forteresse hantée par des morts qui ne meurent pas, puis enquêtent sur une course rituelle dont plus aucun jeune ne revient. Une campagne d'horreur sur un pacte entre une famille et un petit dieu capricieux. Déconseillée aux moins de 12 ans.",
-  players: '2 à 5 joueurs, niveau 1 à 3, public de 12 ans et plus',
+  players: '2 à 5 joueurs (seul : avec un ou deux compagnons), niveau 1 à 3, public de 12 ans et plus',
+  minPlayers: 2,
   duration: 'Campagne de 2 épisodes et une vision, environ 6 heures',
   setting:
     "Les Tressardières, des montagnes battues par des vents qui hurlent comme des âmes torturées. Sur un éperon rocheux se dresse Castelmorant, forteresse de pierre noire en ruine. Dans la vallée, le village de Tressard vit de son miel et de son hydromel, au pied de la Sainte-Blanche, montagne sacrée et taboue où les dimensions s'entremêlent et où poussent les satinelles, de petites fleurs rouges qui changent les perceptions.",

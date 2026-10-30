@@ -67,6 +67,8 @@ export interface Scenario {
   /** Résumé pour choisir le scénario (sans divulgâcher). */
   blurb: string;
   players: string;
+  /** Nombre de joueurs pour lequel l'aventure est équilibrée : en dessous, proposer des compagnons PNJ. */
+  minPlayers: number;
   duration: string;
   setting: string;
   pitch: string;

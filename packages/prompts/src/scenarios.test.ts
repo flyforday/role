@@ -22,6 +22,11 @@ describe('bibliothèque de scénarios', () => {
         if (sc.credits.source?.includes('rolis.net')) expect(sc.credits.license).toContain('CC BY-SA');
       });
 
+      it('indique pour combien de joueurs il est prévu', () => {
+        expect(sc.minPlayers).toBeGreaterThanOrEqual(1);
+        expect(sc.players).toContain(String(sc.minPlayers));
+      });
+
       it('a des références internes cohérentes', () => {
         expect(sceneIds.has(sc.startSceneId)).toBe(true);
         expect(sceneIds.size).toBe(sc.scenes.length);

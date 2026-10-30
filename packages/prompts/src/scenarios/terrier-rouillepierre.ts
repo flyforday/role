@@ -7,7 +7,8 @@ export const terrierRouillepierre: Scenario = {
   genre: 'Fantasy',
   tone: 'Épique',
   blurb: "Des gobelins ont pillé une caravane et emporté la marchande Ysolde dans les vieilles mines de Rouillepierre. Exploration de souterrains, pièges, combats… et une surprise au fond du terrier.",
-  players: '1 à 4 joueurs, niveau 1',
+  players: '2 à 4 joueurs, niveau 1 (seul : avec un compagnon)',
+  minPlayers: 2,
   duration: '2 à 3 heures',
   setting:
     "La route des Cols serpente entre des collines rousses criblées d'anciennes mines de fer. Les nains qui les creusaient sont partis depuis deux générations, laissant des galeries rouillées que l'on dit hantées. Les caravanes y passent vite, escortées si elles le peuvent.",

@@ -56,6 +56,8 @@ export interface Character {
   conditions: string[];
   /** Nom de l'objet utilisé comme arme principale. */
   weapon?: string;
+  /** Compagnon PNJ joué par le MJ (partie à effectif réduit) : il attaque seul en combat. */
+  companion?: boolean;
 }
 
 export type NpcStatus = 'vivant' | 'mort';

@@ -12,6 +12,7 @@ const scenario: Scenario = {
   tone: 'Mystère',
   blurb: 'Un puits étrange.',
   players: '1',
+  minPlayers: 1,
   duration: '1 h',
   setting: 'Un hameau.',
   pitch: 'Le puits chante.',

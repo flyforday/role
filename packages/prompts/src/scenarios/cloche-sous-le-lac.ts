@@ -7,7 +7,8 @@ export const clocheSousLeLac: Scenario = {
   genre: 'Fantasy',
   tone: 'Mystère',
   blurb: "Chaque nuit, une cloche sonne sous les eaux du lac de Brumevive et les villageois marchent vers la rive dans leur sommeil. Enquête, village inquiet et chapelle engloutie.",
-  players: '1 à 4 joueurs, niveau 1',
+  players: '2 à 4 joueurs, niveau 1 (seul : avec un compagnon)',
+  minPlayers: 2,
   duration: '2 à 3 heures',
   setting:
     "Brumevive est un village de pêcheurs et de meuniers niché au bord d'un lac sombre, au pied des collines. Il y a cent ans, une crue a englouti la chapelle de Saint-Aubrin et son sonneur. Depuis, les gens d'ici respectent le lac et n'y pêchent jamais la nuit. Les routes sont boueuses, l'auberge chaleureuse et tout le monde se connaît.",

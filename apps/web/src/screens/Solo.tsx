@@ -36,7 +36,7 @@ export function SoloGameRoute({ id }: { id: string }) {
       </div>
     );
   }
-  if (state.characters.length === 0) {
+  if (!state.characters.some((c) => !c.companion)) {
     return (
       <CharacterCreator
         campaignTitle={state.campaign.title}

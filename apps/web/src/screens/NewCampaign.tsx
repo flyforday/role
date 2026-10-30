@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { gameFromScenario, type GameState, type Scenario } from '@veillee/engine';
+import { MAX_COMPANIONS, addCompanions, gameFromScenario, type GameState, type Scenario } from '@veillee/engine';
 import { SCENARIOS, WorldProposalSchema, buildWorldMessages, gameFromWorld, parseWith, type WorldPreferences, type WorldProposal } from '@veillee/prompts';
 import { Button, Card, Field, Input, Spinner, TextArea } from '../components/ui';
 import { createLlm } from '../lib/llm';
@@ -20,6 +20,12 @@ export function NewCampaign({ onCreated, onCancel, online }: { onCreated: (state
   const [ideas, setIdeas] = useState('');
   const [world, setWorld] = useState<WorldProposal | null>(null);
   const [scenario, setScenario] = useState<Scenario | null>(null);
+  const [companions, setCompanions] = useState(0);
+  const pickScenario = (sc: Scenario | null) => {
+    setScenario(sc);
+    // en solo, on propose d'office assez de compagnons pour atteindre l'effectif prévu
+    setCompanions(sc && !online ? Math.min(MAX_COMPANIONS, Math.max(0, sc.minPlayers - 1)) : 0);
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -111,11 +117,11 @@ export function NewCampaign({ onCreated, onCancel, online }: { onCreated: (state
       <Card title="Scénarios prêts à jouer">
         <div className="grid gap-3 sm:grid-cols-2">
           {SCENARIOS.map((sc) => (
-            <ScenarioCard key={sc.id} scenario={sc} active={scenario?.id === sc.id} onClick={() => setScenario(scenario?.id === sc.id ? null : sc)} />
+            <ScenarioCard key={sc.id} scenario={sc} active={scenario?.id === sc.id} onClick={() => pickScenario(scenario?.id === sc.id ? null : sc)} />
           ))}
           <button
             type="button"
-            onClick={() => setScenario(null)}
+            onClick={() => pickScenario(null)}
             aria-pressed={!scenario}
             className={`rounded-lg border p-3 text-left transition ${!scenario ? 'border-braise-500 bg-braise-500/10' : 'border-nuit-600 hover:border-parchemin-300'}`}
           >
@@ -128,8 +134,22 @@ export function NewCampaign({ onCreated, onCancel, online }: { onCreated: (state
         <Card title={scenario.title}>
           <p className="text-parchemin-200">{scenario.pitch}</p>
           <p className="mt-2 text-sm text-parchemin-300">
-            {scenario.genre} · {scenario.tone} · {scenario.players} · {scenario.duration}
+            {scenario.genre} · {scenario.tone} · {scenario.duration}
           </p>
+          <p className="mt-2 font-semibold text-parchemin-100">👥 Prévu pour {scenario.players}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm text-parchemin-200">Compagnons joués par le MJ :</span>
+            {Array.from({ length: MAX_COMPANIONS + 1 }, (_, n) => (
+              <Chip key={n} active={companions === n} onClick={() => setCompanions(n)}>
+                {n === 0 ? 'Aucun' : String(n)}
+              </Chip>
+            ))}
+          </div>
+          {scenario.minPlayers > 1 && (
+            <p className="mt-1 text-xs text-parchemin-300">
+              Cette aventure est équilibrée pour un groupe : si vous êtes moins de {scenario.minPlayers}, ajoutez des compagnons pour ne pas être débordés en combat.
+            </p>
+          )}
           <p className="mt-2 text-xs text-parchemin-300/70">
             Auteur : {scenario.credits.author} — Licence : {scenario.credits.license}
             {scenario.credits.source && (
@@ -190,7 +210,7 @@ export function NewCampaign({ onCreated, onCancel, online }: { onCreated: (state
           Annuler
         </Button>
         {scenario ? (
-          <Button variant="primary" onClick={() => onCreated(gameFromScenario(scenario, { lines: prefs.lines, veils: prefs.veils, specialRules: prefs.specialRules }))}>
+          <Button variant="primary" onClick={() => onCreated(addCompanions(gameFromScenario(scenario, { lines: prefs.lines, veils: prefs.veils, specialRules: prefs.specialRules }), companions))}>
             Jouer ce scénario →
           </Button>
         ) : (

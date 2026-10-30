@@ -7,7 +7,8 @@ export const tourMageAbsent: Scenario = {
   genre: 'Fantasy',
   tone: 'Merveilleux',
   blurb: "Le mage Céleste Ombrefeuille n'est pas sorti de sa tour depuis un mois, et la tour a commencé à… grandir. Énigmes, objets enchantés, gardiens animés et une apprentie à sauver.",
-  players: '1 à 4 joueurs, niveau 1',
+  players: '2 à 4 joueurs, niveau 1 (seul : avec un compagnon)',
+  minPlayers: 2,
   duration: '2 à 3 heures',
   setting:
     "Le bourg de Sauvebois vit à l'ombre de la tour du mage Céleste Ombrefeuille, un vieil enchanteur excentrique mais bienveillant qui répare les toitures d'un geste et fait pousser les citrouilles en une nuit. Depuis un mois, la tour est silencieuse. Et chaque matin, elle compte un étage de plus.",

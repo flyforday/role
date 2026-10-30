@@ -16,7 +16,8 @@ export const gobelinsClaymores: Scenario = {
   tone: 'Héroïque et parodique',
   blurb:
     "Fauchés et criblés de dettes, les héros partent chercher un tonneau de bière sans fond dans une mine naine… et finissent ligotés par un clan de gobelins qui veut les sacrifier pour réveiller un nécromant. Campagne humoristique en trois actes : fées, dragon végétarien, concours de lancer de héros et bataille finale.",
-  players: '2 à 5 joueurs, niveau 1, débutants bienvenus',
+  players: '2 à 5 joueurs (seul : avec un ou deux compagnons), niveau 1, débutants bienvenus',
+  minPlayers: 2,
   duration: 'Campagne de 3 épisodes, environ 10 heures',
   setting:
     "Un bourg médiéval fantastique sans prétention, son auberge mal famée, ses usuriers et ses routes de campagne. À six lieues de là, d'anciennes mines naines (kazads) abandonnées. Dans la région rôdent l'Ordre de la justice, des paladins fanatiques qui ne font pas de prisonniers, et le clan des Claymores, une bande de gobelins aussi ridicules que dangereux.",
@@ -77,7 +78,7 @@ export const gobelinsClaymores: Scenario = {
       readAloud:
         "Les temps sont durs. Plus de petits boulots, plus un sou, et une ardoise de 250 sous à l'auberge qui grossit à vue d'œil. Ce soir encore, vous partagez une chope tiède dans votre coin habituel quand un vieux contact se penche vers vous et baisse la voix : « Une mine naine abandonnée, à six lieues d'ici. Au fond, il y a un tonneau sans fond, une bière qui ne se tarit jamais. Le genre de trésor qui règle toutes les dettes. » Au comptoir, le serveur vous lance un regard gêné.",
       gmNotes:
-        "Laisser les héros préparer l'expédition : nécessaire de bivouac, torches, matériel d'escalade. S'ils hésitent, leur rappeler qu'ils ne peuvent même plus payer leurs consommations. Au moment de partir, le serveur leur annonce que le patron a revendu leur dette à un usurier, Maître Vindepot, qu'ils doivent aller voir sur-le-champ. Vindepot (avec ses gros bras) exige 250 sous, +10 % par semaine de retard et des nouvelles chaque semaine. Trois façons de réagir : lui parler de l'expédition (il note tout avec un sourire narquois, et il s'en souviendra) ; inventer une histoire (Charisme) ; refuser (bagarre à mains nues, que les gros bras gagnent facilement). S'ils ne vont pas le voir, les gros bras leur tombent dessus avant le départ.",
+        "Laisser les héros préparer l'expédition : nécessaire de bivouac, torches, matériel d'escalade. S'ils hésitent, leur rappeler qu'ils ne peuvent même plus payer leurs consommations. Au moment de partir, le serveur leur annonce que le patron a revendu leur dette à un usurier, Maître Vindepot, qu'ils doivent aller voir sur-le-champ. Vindepot (avec ses gros bras) exige 250 sous, +10 % par semaine de retard et des nouvelles chaque semaine. Trois façons de réagir : lui parler de l'expédition (il note tout avec un sourire narquois, et il s'en souviendra) ; inventer une histoire (Charisme) ; refuser (bagarre à mains nues, que les gros bras gagnent facilement). S'ils ne vont pas le voir, les gros bras leur tombent dessus avant le départ. Ce n'est qu'une leçon : Vindepot siffle la fin de la bagarre après un ou deux rounds (op end_combat), et un héros mis KO se réveille sonné mais sans suite grave.",
       npcIds: ['vindepot'],
       checks: [
         { situation: "Embobiner Maître Vindepot avec une belle histoire pour gagner du temps", ability: 'charisme', difficulty: 16, success: "Vindepot fait mine de vous croire et vous accorde un sursis.", failure: "Les gros bras bandent leurs muscles : un échange de baffes commence, que Vindepot arrête après un round." },
