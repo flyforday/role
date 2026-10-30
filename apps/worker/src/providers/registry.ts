@@ -7,7 +7,7 @@ export const PROVIDER_NAMES = ['gemini', 'groq', 'openrouter'] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
 export const DEFAULT_MODELS: Record<ProviderName, string> = {
-  gemini: 'gemini-2.5-flash',
+  gemini: 'gemini-flash-latest',
   groq: 'llama-3.3-70b-versatile',
   openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
 };

@@ -10,8 +10,10 @@ keep_vars = true
 # Les clés d'API se déclarent avec `wrangler secret put GEMINI_API_KEY` (etc.), jamais ici.
 [vars]
 PROVIDER_ORDER = "gemini,groq,openrouter"
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_THINKING_BUDGET = "0"
+# Alias tenu à jour par Google vers le dernier modèle Flash (évite les 404 quand un modèle est retiré).
+GEMINI_MODEL = "gemini-flash-latest"
+# Laisser vide : les modèles Gemini récents refusent thinkingBudget=0.
+GEMINI_THINKING_BUDGET = ""
 GROQ_MODEL = "llama-3.3-70b-versatile"
 OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 # Origines autorisées (séparées par des virgules). "*" pour tout autoriser en développement.

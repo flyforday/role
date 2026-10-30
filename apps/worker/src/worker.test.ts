@@ -44,7 +44,7 @@ describe('relais IA', () => {
     vi.stubGlobal('fetch', fetchMock);
     const res = await handle(chat({ messages, json: true }), env, new RateLimiter());
     expect(res.status).toBe(200);
-    expect(res.headers.get('x-provider')).toBe('gemini/gemini-2.5-flash');
+    expect(res.headers.get('x-provider')).toBe('gemini/gemini-flash-latest');
     expect(await res.text()).toBe('{"narration":"Bonjour"}');
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toContain(':streamGenerateContent?alt=sse');

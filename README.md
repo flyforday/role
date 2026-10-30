@@ -133,7 +133,7 @@ Dans `apps/worker/wrangler.toml` (`[vars]`) :
 |---|---|---|
 | `PROVIDER_ORDER` | `gemini,groq,openrouter` | Ordre de bascule |
 | `GEMINI_MODEL` / `GROQ_MODEL` / `OPENROUTER_MODEL` | voir le fichier | Modèles utilisés |
-| `GEMINI_THINKING_BUDGET` | `0` | Désactive la « réflexion » de Gemini 2.5 (plus rapide) ; vider pour les modèles qui ne la gèrent pas |
+| `GEMINI_THINKING_BUDGET` | vide | Budget de « réflexion » Gemini ; à renseigner seulement pour un modèle qui l'accepte |
 | `ALLOWED_ORIGINS` | `*` | Origines autorisées à appeler le relais |
 | `RATE_LIMIT_PER_IP_PER_MIN` / `_PER_GAME_PER_MIN` / `_PER_IP_PER_DAY` | 20 / 12 / 600 | Limitation de débit |
 | `MAX_OUTPUT_TOKENS` | 1500 | Longueur maximale d'une réponse |
