@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-nuit-950 font-sans text-parchemin-100 antialiased;
+  background-image: radial-gradient(ellipse at top, rgba(236, 131, 54, 0.07), transparent 60%);
+  min-height: 100dvh;
+}
+
+::selection {
+  @apply bg-braise-500/40;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3245 transparent;
+}
+
+.font-titre {
+  font-variant-numeric: lining-nums;
+}

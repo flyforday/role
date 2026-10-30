@@ -1,0 +1,36 @@
+name: Déploiement Cloudflare
+
+# Déploie le Worker « role » (relais IA + application web). Lancement manuel ou à chaque push sur main.
+# Secrets GitHub requis : CLOUDFLARE_API_TOKEN (droit « Workers Scripts: Edit ») et CLOUDFLARE_ACCOUNT_ID.
+# Variables GitHub facultatives pour le multijoueur : VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploiement
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.AUTO_DEPLOY == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      - name: Déployer le Worker « role » (uniquement lui)
+        working-directory: apps/worker
+        run: npx wrangler deploy --name role
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
