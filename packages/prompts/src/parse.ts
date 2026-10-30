@@ -92,7 +92,7 @@ export function parseGmResponse(raw: string): ParseResult {
   return {
     ok: true,
     value: {
-      narration: env.data.narration.trim(),
+      narration: cleanNarration(env.data.narration),
       roll_request,
       state_changes,
       memory_notes: env.data.memory_notes.filter((n) => n.trim()).slice(0, 10),
@@ -101,6 +101,19 @@ export function parseGmResponse(raw: string): ParseResult {
     invalidChanges,
     invalidRoll,
   };
+}
+
+// Alphabets non latins que le modèle insère parfois par erreur au milieu du français (arabe, hébreu,
+// cyrillique, devanagari, thaï, CJK, hangul...). Les guillemets, tirets et émojis restent autorisés.
+const FOREIGN_SCRIPT = /[\u0400-\u052F\u0590-\u08FF\u0900-\u0DFF\u0E00-\u0EFF\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF\uFB1D-\uFDFF\uFE70-\uFEFF]+/g;
+
+/** Nettoie la narration : retire les fragments d'alphabets étrangers et les espaces superflus. */
+export function cleanNarration(text: string): string {
+  return text
+    .replace(FOREIGN_SCRIPT, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/ +([.,…])/g, '$1')
+    .trim();
 }
 
 export function parseWith<S extends ZodTypeAny>(schema: S, raw: string): { ok: true; value: output<S> } | { ok: false; error: string } {
@@ -126,10 +139,10 @@ export function fallbackNarration(raw: string): string {
   const extractor = new NarrationExtractor();
   extractor.push(raw);
   const fromJson = extractor.text.trim();
-  if (fromJson) return fromJson;
+  if (fromJson) return cleanNarration(fromJson);
   const stripped = raw.replace(/```[a-z]*|```/gi, '').trim();
   if (stripped.startsWith('{')) return '';
-  return stripped.slice(0, 2000);
+  return cleanNarration(stripped.slice(0, 2000));
 }
 
 /**

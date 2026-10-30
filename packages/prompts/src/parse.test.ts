@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NarrationExtractor, extractJson, fallbackNarration, parseGmResponse } from './parse';
+import { NarrationExtractor, cleanNarration, extractJson, fallbackNarration, parseGmResponse } from './parse';
 
 const good = {
   narration: 'La brume se lève sur le quai.',
@@ -93,5 +93,17 @@ describe('NarrationExtractor', () => {
     const ex = new NarrationExtractor();
     expect(ex.push('{"memory_notes":["x"],')).toBe('');
     expect(ex.push('"narration": "Bonjour"')).toBe('Bonjour');
+  });
+});
+
+describe('cleanNarration', () => {
+  it('retire les fragments d\'alphabets étrangers sans toucher au français', () => {
+    expect(cleanNarration('une forme massive se dét صل... non, ce n\'est que la roche.')).toBe("une forme massive se dét... non, ce n'est que la roche.");
+    expect(cleanNarration('« Bien joué ! » — dit-elle, 🎲 prête ?')).toBe('« Bien joué ! » — dit-elle, 🎲 prête ?');
+  });
+
+  it('s\'applique à la narration validée', () => {
+    const r = parseGmResponse(JSON.stringify({ narration: 'Le cristal пульс brille.', state_changes: [] }));
+    expect(r.ok && r.value.narration).toBe('Le cristal brille.');
   });
 });
