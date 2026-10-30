@@ -18,7 +18,8 @@ GEMINI_MODEL = "gemini-flash-latest,gemini-flash-lite-latest"
 GEMINI_THINKING_LEVEL = "low"
 # Ancien réglage (Gemini 2.5), ignoré si GEMINI_THINKING_LEVEL est rempli.
 GEMINI_THINKING_BUDGET = ""
-GROQ_MODEL = "llama-3.3-70b-versatile"
+# llama-3.3-70b-versatile a été retiré par Groq le 16/08/2026.
+GROQ_MODEL = "openai/gpt-oss-120b,openai/gpt-oss-20b"
 OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 # Origines autorisées (séparées par des virgules). "*" pour tout autoriser en développement.
 ALLOWED_ORIGINS = "*"

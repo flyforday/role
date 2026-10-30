@@ -115,6 +115,19 @@ describe('relais IA', () => {
     }
   });
 
+  it('utilise gpt-oss sur Groq avec un effort de raisonnement bas', async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      if (url.includes('googleapis')) return new Response('quota', { status: 429 });
+      bodies.push(JSON.parse(init.body as string));
+      return openai(['ok']);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await handle(chat({ messages }), env, new RateLimiter());
+    expect(res.headers.get('x-provider')).toBe('groq/openai/gpt-oss-120b');
+    expect(bodies[0]).toMatchObject({ model: 'openai/gpt-oss-120b', reasoning_effort: 'low' });
+  });
+
   it('renvoie 503 quand tous les fournisseurs échouent', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('down', { status: 500 })));
     const res = await handle(chat({ messages }), env, new RateLimiter());
