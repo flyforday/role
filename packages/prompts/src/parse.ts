@@ -1,4 +1,4 @@
-import type { ZodType } from 'zod';
+import type { ZodTypeAny, output } from 'zod';
 import type { StateChange } from '@veillee/engine';
 import { GmResponseEnvelopeSchema, RollRequestSchema, StateChangeSchema, type GmResponse } from './schema';
 
@@ -103,7 +103,7 @@ export function parseGmResponse(raw: string): ParseResult {
   };
 }
 
-export function parseWith<T>(schema: ZodType<T>, raw: string): { ok: true; value: T } | { ok: false; error: string } {
+export function parseWith<S extends ZodTypeAny>(schema: S, raw: string): { ok: true; value: output<S> } | { ok: false; error: string } {
   let data: unknown;
   try {
     data = extractJson(raw);
