@@ -35,7 +35,7 @@ Le **même Worker** (`role`) sert l'application web (fichiers statiques de `apps
 
 ### Fournisseurs d'IA
 
-Le Worker expose une interface unique `LLMProvider.complete(messages, options) → flux de texte` avec trois adaptateurs : **Gemini** (par défaut), **Groq**, **OpenRouter** (modèles `:free`). En cas d'erreur 429, 5xx ou réseau, il bascule automatiquement sur le suivant (ordre réglé par `PROVIDER_ORDER`). Les modèles se configurent dans `apps/worker/wrangler.toml` (`GEMINI_MODEL`, `GROQ_MODEL`, `OPENROUTER_MODEL`), jamais dans le front.
+Le Worker expose une interface unique `LLMProvider.complete(messages, options) → flux de texte` avec trois adaptateurs : **Gemini** (par défaut), **Groq**, **OpenRouter** (modèles `:free`). En cas d'erreur 429, 5xx ou réseau, il bascule automatiquement sur le suivant (ordre réglé par `PROVIDER_ORDER`) ; un fournisseur qui n'a pas répondu au bout de 40 s est aussi abandonné. Les modèles se configurent dans `apps/worker/wrangler.toml` (`GEMINI_MODEL`, `GROQ_MODEL`, `OPENROUTER_MODEL`), jamais dans le front.
 
 Dans les réglages du jeu, chaque joueur peut aussi choisir :
 - **Ma propre clé (BYOK)** : la clé reste dans son navigateur et n'est envoyée au relais qu'avec chaque requête, sans jamais être enregistrée côté serveur.
@@ -132,8 +132,9 @@ Dans `apps/worker/wrangler.toml` (`[vars]`) :
 | Variable | Défaut | Rôle |
 |---|---|---|
 | `PROVIDER_ORDER` | `gemini,groq,openrouter` | Ordre de bascule |
-| `GEMINI_MODEL` / `GROQ_MODEL` / `OPENROUTER_MODEL` | voir le fichier | Modèles utilisés |
-| `GEMINI_THINKING_BUDGET` | vide | Budget de « réflexion » Gemini ; à renseigner seulement pour un modèle qui l'accepte |
+| `GEMINI_MODEL` / `GROQ_MODEL` / `OPENROUTER_MODEL` | voir le fichier | Modèles utilisés ; plusieurs modèles séparés par des virgules sont essayés dans l'ordre |
+| `GEMINI_THINKING_LEVEL` | `low` | Niveau de réflexion des modèles Gemini 3 (`minimal`, `low`, `medium`, `high`) ; retiré automatiquement si le modèle le refuse |
+| `GEMINI_THINKING_BUDGET` | vide | Ancien budget de réflexion (Gemini 2.5), ignoré si `GEMINI_THINKING_LEVEL` est rempli |
 | `ALLOWED_ORIGINS` | `*` | Origines autorisées à appeler le relais |
 | `RATE_LIMIT_PER_IP_PER_MIN` / `_PER_GAME_PER_MIN` / `_PER_IP_PER_DAY` | 20 / 12 / 600 | Limitation de débit |
 | `MAX_OUTPUT_TOKENS` | 1500 | Longueur maximale d'une réponse |

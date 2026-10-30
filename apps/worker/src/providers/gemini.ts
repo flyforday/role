@@ -1,10 +1,12 @@
 import { mapJsonEvents, sseData } from '../sse';
-import { fetchOrThrow, type ChatMessage, type CompleteOptions, type LLMProvider } from './types';
+import { fetchOrThrow, ProviderError, type ChatMessage, type CompleteOptions, type LLMProvider } from './types';
 
 export interface GeminiConfig {
   apiKey: string;
   model: string;
   thinkingBudget?: number;
+  /** Niveau de réflexion des modèles Gemini 3 (minimal, low, medium, high). Prioritaire sur thinkingBudget. */
+  thinkingLevel?: string;
   baseUrl?: string;
 }
 
@@ -33,18 +35,32 @@ export class GeminiProvider implements LLMProvider {
       maxOutputTokens: options.maxTokens ?? 1500,
     };
     if (options.json) generationConfig.responseMimeType = 'application/json';
-    if (this.config.thinkingBudget !== undefined) generationConfig.thinkingConfig = { thinkingBudget: this.config.thinkingBudget };
+    const thinkingConfig = this.config.thinkingLevel
+      ? { thinkingLevel: this.config.thinkingLevel }
+      : this.config.thinkingBudget !== undefined
+        ? { thinkingBudget: this.config.thinkingBudget }
+        : undefined;
 
-    const res = await fetchOrThrow(this.name, url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': this.config.apiKey },
-      body: JSON.stringify({
-        ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
-        contents,
-        generationConfig,
-      }),
-      signal: options.signal,
-    });
+    const send = (withThinking: boolean) =>
+      fetchOrThrow(this.name, url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': this.config.apiKey },
+        body: JSON.stringify({
+          ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+          contents,
+          generationConfig: withThinking && thinkingConfig ? { ...generationConfig, thinkingConfig } : generationConfig,
+        }),
+        signal: options.signal,
+      });
+
+    let res: Response;
+    try {
+      res = await send(true);
+    } catch (e) {
+      // Un modèle qui ne connaît pas ce réglage de réflexion répond 400 : on réessaie sans.
+      if (!(thinkingConfig && e instanceof ProviderError && e.status === 400 && /thinking/i.test(e.message))) throw e;
+      res = await send(false);
+    }
     return mapJsonEvents(sseData(res.body!), (json) =>
       (json?.candidates?.[0]?.content?.parts ?? [])
         .filter((p: { thought?: boolean }) => !p.thought)

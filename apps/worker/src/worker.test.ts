@@ -62,8 +62,57 @@ describe('relais IA', () => {
     const res = await handle(chat({ messages }), env, new RateLimiter());
     expect(res.status).toBe(200);
     expect(res.headers.get('x-provider')).toMatch(/^groq\//);
-    expect(res.headers.get('x-provider-failures')).toBe('gemini: 429');
+    expect(res.headers.get('x-provider-failures')).toBe('gemini gemini-flash-latest: 429');
     expect(await res.text()).toBe('Salut !');
+  });
+
+  it('envoie le niveau de réflexion et le retire si le modèle le refuse', async () => {
+    const bodies: Array<{ generationConfig: { thinkingConfig?: unknown } }> = [];
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string);
+      bodies.push(body);
+      return body.generationConfig.thinkingConfig
+        ? new Response('Thinking level is not supported for this model.', { status: 400 })
+        : gemini(['ok']);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await handle(chat({ messages }), { ...env, GEMINI_THINKING_LEVEL: 'low' }, new RateLimiter());
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('ok');
+    expect(bodies[0].generationConfig.thinkingConfig).toEqual({ thinkingLevel: 'low' });
+    expect(bodies[1].generationConfig.thinkingConfig).toBeUndefined();
+  });
+
+  it('essaie chaque modèle Gemini de la liste avant de changer de fournisseur', async () => {
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      urls.push(url);
+      return url.includes('gemini-a') ? new Response('surcharge', { status: 503 }) : gemini(['ok']);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await handle(chat({ messages }), { ...env, GEMINI_MODEL: 'gemini-a, gemini-b' }, new RateLimiter());
+    expect(res.headers.get('x-provider')).toBe('gemini/gemini-b');
+    expect(res.headers.get('x-provider-failures')).toBe('gemini gemini-a: 503');
+    expect(urls).toHaveLength(2);
+  });
+
+  it('bascule quand un fournisseur ne répond pas à temps', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn((url: string, init: RequestInit) =>
+        url.includes('googleapis')
+          ? new Promise<Response>((_, reject) => init.signal?.addEventListener('abort', () => reject(new Error('aborted'))))
+          : Promise.resolve(openai(['vite'])),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const pending = handle(chat({ messages }), env, new RateLimiter());
+      await vi.advanceTimersByTimeAsync(41_000);
+      const res = await pending;
+      expect(res.headers.get('x-provider')).toMatch(/^groq\//);
+      expect(res.headers.get('x-provider-failures')).toBe('gemini gemini-flash-latest: 504');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renvoie 503 quand tous les fournisseurs échouent', async () => {

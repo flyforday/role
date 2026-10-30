@@ -10,9 +10,13 @@ keep_vars = true
 # Les clés d'API se déclarent avec `wrangler secret put GEMINI_API_KEY` (etc.), jamais ici.
 [vars]
 PROVIDER_ORDER = "gemini,groq,openrouter"
-# Alias tenu à jour par Google vers le dernier modèle Flash (évite les 404 quand un modèle est retiré).
-GEMINI_MODEL = "gemini-flash-latest"
-# Laisser vide : les modèles Gemini récents refusent thinkingBudget=0.
+# Liste de modèles essayés dans l'ordre (séparés par des virgules). Le premier est l'alias
+# tenu à jour par Google vers le dernier Flash ; le second, plus léger, sert de secours.
+GEMINI_MODEL = "gemini-flash-latest,gemini-flash-lite-latest"
+# Réflexion des modèles Gemini 3 : "low" garde des réponses rapides (le défaut "high" peut
+# dépasser le délai et provoquer une erreur 524). Si le modèle refuse ce réglage, il est retiré.
+GEMINI_THINKING_LEVEL = "low"
+# Ancien réglage (Gemini 2.5), ignoré si GEMINI_THINKING_LEVEL est rempli.
 GEMINI_THINKING_BUDGET = ""
 GROQ_MODEL = "llama-3.3-70b-versatile"
 OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"

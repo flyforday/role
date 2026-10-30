@@ -20,7 +20,7 @@ export async function completeWithFallback(providers: LLMProvider[], messages: C
       return { provider, stream, failures };
     } catch (e) {
       const err = e instanceof ProviderError ? e : new ProviderError((e as Error).message, 0, provider.name);
-      failures.push(`${provider.name}: ${err.status || 'réseau'}`);
+      failures.push(`${provider.name} ${provider.model}: ${err.status || 'réseau'}`);
       lastError = err;
     }
   }
