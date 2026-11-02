@@ -2,8 +2,8 @@
 
 Veillée est une application web de jeu de rôle sur table. Les joueurs décrivent librement ce que tentent leurs personnages, un Maître du Jeu (MJ) IA raconte la suite, et **le code arbitre** : dés, points de vie, inventaire, or, combat et état du monde sont gérés et validés par le moteur, jamais décidés par l'IA.
 
-- Solo (sauvegarde dans le navigateur, export/import JSON) ou multijoueur (Supabase, lien d'invitation, temps réel).
-- Gratuit pour un petit groupe : uniquement des offres gratuites (Cloudflare Workers, Gemini, Groq, OpenRouter, Supabase).
+- Solo (sauvegarde dans le navigateur, export/import JSON) ou multijoueur (code de partie à partager, temps réel, sans compte).
+- Gratuit pour un petit groupe : uniquement des offres gratuites (Cloudflare Workers et Durable Objects, Gemini, Groq, OpenRouter).
 - Aucune clé d'API dans le navigateur : tout passe par un relais (Cloudflare Worker).
 - Interface en français.
 
@@ -16,7 +16,7 @@ Le cahier des charges complet est dans [`docs/PROMPT_PROJET.md`](docs/PROMPT_PRO
 3. [Démarrer en local](#démarrer-en-local)
 4. [Créer les comptes gratuits](#créer-les-comptes-gratuits)
 5. [Déployer](#déployer)
-6. [Multijoueur (Supabase)](#multijoueur-supabase)
+6. [Multijoueur (code de partie)](#multijoueur-code-de-partie)
 7. [Fonctionnement d'un tour](#fonctionnement-dun-tour)
 8. [Quotas des offres gratuites](#quotas-des-offres-gratuites)
 9. [État d'avancement](#état-davancement)
@@ -28,7 +28,6 @@ apps/web         → front Vite + React + TypeScript + Tailwind
 apps/worker      → Cloudflare Worker : relais IA (bascule, BYOK, limitation de débit) + hébergement du front
 packages/engine  → moteur de jeu pur TypeScript : règles, dés à graine injectable, applyChanges, combat
 packages/prompts → prompt du MJ, schémas Zod, construction du contexte, parsing, boucle d'un tour, résumé glissant
-supabase/        → schéma SQL du multijoueur (tables, règles RLS, temps réel)
 ```
 
 Le **même Worker** (`role`) sert l'application web (fichiers statiques de `apps/web/dist`) et l'API `/api/*` : une seule adresse, pas de CORS à configurer.
@@ -45,7 +44,7 @@ Dans les réglages du jeu, chaque joueur peut aussi choisir :
 ### Qui est l'arbitre ?
 
 - En solo, le moteur tourne dans le navigateur du joueur.
-- En multijoueur, le navigateur de **l'hôte** est l'arbitre : il reçoit les actions des joueurs, appelle l'IA via le relais, lance les dés, applique les changements validés et écrit l'état dans Supabase. Les règles RLS empêchent tout autre joueur de modifier l'état. L'hôte doit donc garder son onglet ouvert pendant la partie.
+- En multijoueur, le navigateur de **l'hôte** est l'arbitre : il reçoit les actions des joueurs, appelle l'IA via le relais, lance les dés, applique les changements validés et envoie l'état à la salle de la partie (Durable Object), qui refuse toute modification venant d'un autre joueur. L'hôte doit donc garder son onglet ouvert pendant la partie.
 
 ## Règles du jeu
 
@@ -84,7 +83,6 @@ Variables du front (`apps/web/.env.example`) :
 | Variable | Rôle |
 |---|---|
 | `VITE_WORKER_URL` | Adresse du relais si le front est hébergé ailleurs que sur le Worker. Vide = même origine. |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Activent le multijoueur. La clé « anon » est publique par conception. |
 
 ## Créer les comptes gratuits
 
@@ -94,7 +92,6 @@ Variables du front (`apps/web/.env.example`) :
 | Groq (secours) | [console.groq.com/keys](https://console.groq.com/keys) | `GROQ_API_KEY` |
 | OpenRouter (secours n°2) | [openrouter.ai/keys](https://openrouter.ai/keys) | `OPENROUTER_API_KEY` |
 | Cloudflare | [dash.cloudflare.com](https://dash.cloudflare.com) | identifiant de compte + jeton d'API « Edit Cloudflare Workers » |
-| Supabase (multijoueur) | [supabase.com/dashboard](https://supabase.com/dashboard) | URL du projet + clé `anon` |
 
 Une seule clé IA suffit pour jouer ; les autres servent de secours quand un quota est atteint.
 
@@ -114,14 +111,13 @@ npm run deploy                           # construit le front puis déploie le W
 
 L'application est ensuite disponible sur `https://role.<votre-sous-domaine>.workers.dev`.
 
-Pour le multijoueur, construisez avec les variables Supabase : `VITE_SUPABASE_URL=… VITE_SUPABASE_ANON_KEY=… npm run deploy`.
 
 ### Depuis GitHub Actions
 
 Le workflow [`deploy.yml`](.github/workflows/deploy.yml) se lance à la main (onglet *Actions → Déploiement Cloudflare → Run workflow*). Il faut ajouter dans *Settings → Secrets and variables → Actions* :
 
 - secrets `CLOUDFLARE_API_TOKEN` et `CLOUDFLARE_ACCOUNT_ID` ;
-- variables facultatives `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, et `AUTO_DEPLOY=true` pour déployer à chaque push sur `main`.
+- variable facultative `AUTO_DEPLOY=true` pour déployer à chaque push sur `main`.
 
 Les clés d'IA restent des secrets du Worker (`wrangler secret put …` ou tableau de bord Cloudflare → Workers → role → Settings → Variables and Secrets), jamais dans le dépôt.
 
@@ -141,18 +137,15 @@ Dans `apps/worker/wrangler.toml` (`[vars]`) :
 
 La limitation de débit est en mémoire de l'isolat Cloudflare : c'est une protection « au mieux », suffisante pour éviter qu'une boucle ou un abus ne vide le quota commun.
 
-## Multijoueur (Supabase)
+## Multijoueur (code de partie)
 
-1. Créez un projet Supabase (offre gratuite).
-2. Dans *SQL Editor*, exécutez [`supabase/migrations/0001_parties.sql`](supabase/migrations/0001_parties.sql) : tables `games`, `game_members`, `actions`, règles RLS, fonction `join_game` et publication temps réel.
-3. Dans *Authentication → URL Configuration*, ajoutez l'adresse du jeu (par exemple `https://role.<sous-domaine>.workers.dev`) aux *Redirect URLs* pour le lien magique.
-4. Construisez le front avec `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` (voir [Déployer](#déployer)).
+Rien à configurer : le multijoueur fait partie du Worker `role`. Chaque partie est une **salle** (Durable Object Cloudflare SQLite, offre gratuite) identifiée par un code de 6 caractères, sans compte ni e-mail.
 
-Déroulement : l'hôte se connecte (lien magique), crée une partie en ligne, copie le lien **Inviter** et le partage. Chaque joueur ouvre le lien, se connecte, crée son personnage. Deux modes :
-- **libre** : chaque action est résolue dès qu'elle arrive ;
-- **par tour** : chacun déclare son action, le MJ résout le tour quand tous ont joué (ou quand l'hôte clique « Résoudre le tour »).
+Déroulement : l'hôte clique **Créer une partie à plusieurs**, choisit un scénario ou un monde, crée son personnage, puis donne le **code** (affiché sous le récit, cliquable pour le copier) ou le lien **Inviter**. Les amis tapent le code dans *Jouer entre amis* (accueil), choisissent un nom et créent leur personnage. Deux modes (outils de l'hôte) :
+- **par tour** (par défaut) : chacun déclare son action, le MJ répond une fois que tous les joueurs connectés ont joué (ou quand l'hôte clique « Résoudre le tour »). Tant que le MJ n'a pas répondu, chacun peut retirer son action (✎) ou en envoyer une nouvelle, qui remplace l'ancienne ;
+- **libre** : chaque action est résolue dès qu'elle arrive.
 
-La narration en cours d'écriture et les dés sont diffusés en direct à tous (Supabase Realtime). L'hôte dispose des **outils de l'hôte** : annuler le dernier tour, relancer la réponse du MJ, éditer le lorebook, le résumé et l'état du jeu.
+Le navigateur de l'hôte reste l'arbitre (moteur + appels au MJ) ; la salle garde l'état, relaie en direct la narration en cours d'écriture, les dés et les actions (WebSocket avec hibernation : une salle inactive ne coûte rien), et vérifie les droits : seul l'hôte écrit l'état, chacun ne joue que ses personnages, chaque place est protégée par un jeton secret gardé dans le navigateur. Si l'hôte ferme son onglet, un autre joueur peut **prendre la main** et faire tourner le MJ chez lui. Une salle inactive pendant 30 jours est effacée.
 
 ## Fonctionnement d'un tour
 
@@ -172,14 +165,14 @@ Les quotas changent souvent ; l'application n'en dépend pas (elle bascule simpl
 - Groq : [console.groq.com/docs/rate-limits](https://console.groq.com/docs/rate-limits)
 - OpenRouter : [openrouter.ai/docs/api-reference/limits](https://openrouter.ai/docs/api-reference/limits)
 - Cloudflare Workers : [developers.cloudflare.com/workers/platform/limits](https://developers.cloudflare.com/workers/platform/limits/)
-- Supabase : [supabase.com/pricing](https://supabase.com/pricing)
+- Durable Objects : [developers.cloudflare.com/durable-objects/platform/pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/)
 
 ## État d'avancement
 
 | Phase | Contenu | État |
 |---|---|---|
 | 1 — MVP solo | Création guidée de campagne et de personnage, narration en streaming, fiche, journal de quête, actions suggérées, dés animés, sauvegarde locale, export/import | ✅ |
-| 2 — Multijoueur | Lien magique, invitations, temps réel, modes libre / par tour, rôle d'hôte (annuler, relancer, corriger l'état) | ✅ (nécessite un projet Supabase) |
+| 2 — Multijoueur | Code de partie sans compte, temps réel, modes libre / par tour, actions modifiables avant la réponse du MJ, rôle d'hôte transférable (annuler, relancer, corriger l'état) | ✅ |
 | 3 — Robustesse | Bascule multi-fournisseurs, BYOK, résumé glissant, lorebook éditable, combat structuré, lignes / voiles / carte X | ✅ |
 | 4 — Optionnel | WebLLM local | ✅ expérimental |
 | 4 — Optionnel | Bot Discord, images d'ambiance | non commencé |

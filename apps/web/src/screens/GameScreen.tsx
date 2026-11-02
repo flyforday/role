@@ -90,7 +90,18 @@ export function GameScreen({ game, onHome, extra }: { game: GameController; onHo
               <CombatPanel state={state} />
               {game.pending.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg bg-nuit-800 p-2 text-sm text-parchemin-200">
-                  <span>Actions déclarées : {game.pending.map((p) => p.characterName).join(', ')}</span>
+                  <span>Actions déclarées :</span>
+                  {game.pending.map((p) => (
+                    <span key={p.id} className="inline-flex items-center gap-1 rounded-full bg-nuit-700 px-2 py-0.5 text-xs" title={p.text}>
+                      ✓ {p.characterName}
+                      {game.withdraw && !game.busy && mine.includes(p.characterId) && (
+                        <button className="text-parchemin-300 hover:text-white" onClick={() => game.withdraw?.(p.id)} aria-label="Retirer mon action" title="Retirer pour la modifier">
+                          ✎
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                  {!!game.waitingFor?.length && <span className="text-braise-300">En attente de : {game.waitingFor.join(', ')}</span>}
                   {game.isHost && state.turnMode === 'tour' && (
                     <Button variant="primary" className="ml-auto px-3 py-1" disabled={game.busy} onClick={game.resolvePending}>
                       Résoudre le tour

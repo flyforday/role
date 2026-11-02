@@ -179,3 +179,30 @@ describe('relais IA', () => {
     expect(JSON.stringify(body)).not.toContain('key');
   });
 });
+
+describe('salles multijoueur (routes)', () => {
+  it('répond 503 si le multijoueur n’est pas lié', async () => {
+    const res = await handle(new Request('https://relais.test/api/salle', { method: 'POST', body: '{}' }), env, new RateLimiter());
+    expect(res.status).toBe(503);
+  });
+
+  it('refuse un code invalide sans réveiller de salle', async () => {
+    const get = vi.fn();
+    const withSalles = { ...env, SALLES: { idFromName: vi.fn(), get } as unknown as DurableObjectNamespace };
+    const res = await handle(new Request('https://relais.test/api/salle/AB0/infos'), withSalles, new RateLimiter());
+    expect(res.status).toBe(404);
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it('tire un nouveau code si le premier est déjà pris', async () => {
+    const fetchStub = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{"error":"occupé"}', { status: 409 }))
+      .mockImplementationOnce(async (_url: string, init: RequestInit) => new Response(JSON.stringify({ code: JSON.parse(String(init.body)).code })));
+    const withSalles = { ...env, SALLES: { idFromName: (n: string) => n, get: () => ({ fetch: fetchStub }) } as unknown as DurableObjectNamespace };
+    const res = await handle(new Request('https://relais.test/api/salle', { method: 'POST', body: '{"state":{}}' }), withSalles, new RateLimiter());
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { code: string }).code).toMatch(/^[A-Z2-9]{6}$/);
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+  });
+});

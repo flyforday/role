@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.47.10",
     "@veillee/engine": "*",
     "@veillee/prompts": "*",
     "react": "^18.3.1",

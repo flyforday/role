@@ -4,6 +4,9 @@ import { RateLimiter } from './ratelimit';
 import { configuredProviders, DEFAULT_MODELS, makeProvider, PROVIDER_NAMES, type ProviderName } from './providers/registry';
 import { ProviderError, type ChatMessage, type LLMProvider } from './providers/types';
 import { synthesize, validateTtsBody } from './tts';
+import { isValidCode, normalizeCode, randomCode, MAX_STATE_CHARS } from './salle';
+
+export { Salle } from './salle';
 
 const limiter = new RateLimiter();
 
@@ -32,9 +35,10 @@ export async function handle(request: Request, env: Env, rl: RateLimiter): Promi
 
   const url = new URL(request.url);
   if (url.pathname === '/api/health' && request.method === 'GET') {
-    return json({ ok: true, providers: configuredProviders(env).map((p) => ({ name: p.name, model: p.model })), tts: Boolean(env.GEMINI_API_KEY) }, 200, cors);
+    return json({ ok: true, multijoueur: !!env.SALLES, providers: configuredProviders(env).map((p) => ({ name: p.name, model: p.model })), tts: Boolean(env.GEMINI_API_KEY) }, 200, cors);
   }
   if (url.pathname === '/api/tts' && request.method === 'POST') return handleTts(request, env, rl, cors);
+  if (url.pathname.startsWith('/api/salle')) return handleSalle(request, env, rl, url, cors);
   if (url.pathname !== '/api/chat' || request.method !== 'POST') return json({ error: 'Introuvable' }, 404, cors);
 
   let body: ChatBody;
@@ -105,6 +109,46 @@ async function handleTts(request: Request, env: Env, rl: RateLimiter, cors: Reco
     const err = e instanceof ProviderError ? e : new ProviderError((e as Error).message, 500, 'tts');
     return json({ error: err.message }, err.status || 503, cors);
   }
+}
+
+/** Parties multijoueur : création (code), infos publiques et connexion WebSocket à la salle. */
+async function handleSalle(request: Request, env: Env, rl: RateLimiter, url: URL, cors: Record<string, string>): Promise<Response> {
+  if (!env.SALLES) return json({ error: "Le multijoueur n'est pas activé sur ce relais." }, 503, cors);
+  const ip = request.headers.get('cf-connecting-ip') ?? 'inconnu';
+  const parts = url.pathname.split('/').filter(Boolean); // api, salle, [code], [ws|infos]
+
+  if (parts.length === 2 && request.method === 'POST') {
+    const retry = rl.hit(`salle:${ip}`, 20, 3_600_000);
+    if (retry) return json({ error: `Trop de parties créées, réessayez dans ${retry} s.` }, 429, cors);
+    const text = await request.text();
+    if (text.length > MAX_STATE_CHARS) return json({ error: 'Partie trop volumineuse' }, 413, cors);
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return json({ error: 'Corps JSON attendu' }, 400, cors);
+    }
+    for (let i = 0; i < 5; i++) {
+      const code = randomCode();
+      const stub = env.SALLES.get(env.SALLES.idFromName(code));
+      const res = await stub.fetch('https://salle/creer', { method: 'POST', body: JSON.stringify({ ...body, code }) });
+      if (res.status === 409) continue; // code déjà pris : on en tire un autre
+      return new Response(res.body, { status: res.status, headers: { ...cors, 'content-type': 'application/json; charset=utf-8' } });
+    }
+    return json({ error: 'Impossible de trouver un code libre, réessayez.' }, 503, cors);
+  }
+
+  const code = normalizeCode(parts[2] ?? '');
+  const action = parts[3];
+  if (!isValidCode(code) || parts.length !== 4 || !['ws', 'infos'].includes(action)) return json({ error: 'Introuvable' }, 404, cors);
+  if (action === 'ws') {
+    const retry = rl.hit(`ws:${ip}`, 60, 60_000);
+    if (retry) return json({ error: 'Trop de connexions' }, 429, cors);
+  }
+  const stub = env.SALLES.get(env.SALLES.idFromName(code));
+  const res = await stub.fetch(new Request(`https://salle/${action}`, request));
+  if (action === 'ws') return res;
+  return new Response(res.body, { status: res.status, headers: { ...cors, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 }
 
 export function validateBody(raw: unknown): ChatBody {

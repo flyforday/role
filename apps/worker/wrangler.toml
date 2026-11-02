@@ -38,3 +38,12 @@ TTS_PER_IP_PER_DAY = "80"
 # Construire le front avant `wrangler dev` / `wrangler deploy` : npm run build (à la racine).
 [assets]
 directory = "../web/dist"
+
+# Multijoueur : une salle (Durable Object SQLite, offre gratuite) par partie, identifiée par son code.
+[[durable_objects.bindings]]
+name = "SALLES"
+class_name = "Salle"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Salle"]

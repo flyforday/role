@@ -35,9 +35,13 @@ export interface GameController {
   /** Personnages que ce joueur contrôle. */
   controlledIds: string[];
   pending: PendingAction[];
+  /** Mode par tour en ligne : personnages dont on attend encore l'action. */
+  waitingFor?: string[];
   canUndo: boolean;
   inviteUrl?: string;
   submit(action: PlayerAction): Promise<void>;
+  /** Retire une action déclarée tant que le MJ n'a pas répondu (en ligne). */
+  withdraw?(id: PendingAction['id']): Promise<void>;
   undo(): Promise<void>;
   regenerate(): Promise<void>;
   replaceState(state: GameState): Promise<void>;
