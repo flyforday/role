@@ -1,7 +1,28 @@
 import { useEffect, useRef } from 'react';
 import type { LogEntry, GameState } from '@veillee/engine';
 import type { LiveTurn } from '../lib/controller';
+import { narrate, stopNarration, useNarration } from '../lib/narration';
+import { useSettings } from '../lib/settings';
 import { Spinner } from './ui';
+
+function ListenButton({ id, text }: { id: string; text: string }) {
+  const n = useNarration();
+  const active = n.id === id;
+  return (
+    <button
+      type="button"
+      onClick={() => narrate(id, text)}
+      aria-label={active ? 'Arrêter la narration' : 'Écouter le MJ'}
+      title={active ? 'Arrêter' : 'Écouter le MJ'}
+      className={`mt-1 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-sans text-xs transition ${
+        active ? 'border-braise-500 bg-braise-500/15 text-braise-300' : 'border-nuit-600 text-parchemin-300 hover:border-braise-500/60 hover:text-parchemin-100'
+      }`}
+    >
+      {active ? (n.loading ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-braise-400 border-t-transparent" /> : '■') : '🔊'}
+      {active ? (n.loading ? 'Le conteur s’éclaircit la voix…' : 'Arrêter') : 'Écouter'}
+    </button>
+  );
+}
 
 function Paragraphs({ text }: { text: string }) {
   return (
@@ -15,12 +36,13 @@ function Paragraphs({ text }: { text: string }) {
   );
 }
 
-function Entry({ e }: { e: Pick<LogEntry, 'kind' | 'text' | 'actorName'> }) {
+function Entry({ e, id }: { e: Pick<LogEntry, 'kind' | 'text' | 'actorName'>; id?: string }) {
   switch (e.kind) {
     case 'gm':
       return (
         <div className="animate-fadein font-recit text-[17px] leading-relaxed text-parchemin-100">
           <Paragraphs text={e.text} />
+          {id && <ListenButton id={id} text={e.text} />}
         </div>
       );
     case 'player':
@@ -41,6 +63,17 @@ function Entry({ e }: { e: Pick<LogEntry, 'kind' | 'text' | 'actorName'> }) {
 
 export function NarrativeFeed({ state, live }: { state: GameState; live: LiveTurn | null }) {
   const end = useRef<HTMLDivElement>(null);
+  const settings = useSettings();
+  const narration = useNarration();
+  // Lecture automatique : seules les réponses du MJ arrivées après l'ouverture de la partie sont lues.
+  const lastGm = [...state.log].reverse().find((e) => e.kind === 'gm');
+  const seenGm = useRef(lastGm?.id);
+  useEffect(() => {
+    if (!lastGm || lastGm.id === seenGm.current) return;
+    seenGm.current = lastGm.id;
+    if (settings.narrationAuto) narrate(lastGm.id, lastGm.text);
+  }, [lastGm?.id]);
+  useEffect(() => () => stopNarration(), []);
   const liveLen = live ? live.items.length + (live.streaming?.length ?? 0) : 0;
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -48,8 +81,9 @@ export function NarrativeFeed({ state, live }: { state: GameState; live: LiveTur
 
   return (
     <div className="space-y-5" aria-live="polite">
+      {narration.notice && <p className="text-center text-xs text-parchemin-300/80">{narration.notice}</p>}
       {state.log.map((e) => (
-        <Entry key={e.id} e={e} />
+        <Entry key={e.id} e={e} id={e.id} />
       ))}
       {live?.items.map((item, i) => {
         if (item.kind === 'player') return <Entry key={`l${i}`} e={{ kind: 'player', actorName: item.name, text: item.text }} />;

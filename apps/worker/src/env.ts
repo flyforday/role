@@ -13,6 +13,10 @@ export interface Env {
   RATE_LIMIT_PER_GAME_PER_MIN?: string;
   RATE_LIMIT_PER_IP_PER_DAY?: string;
   MAX_OUTPUT_TOKENS?: string;
+  GEMINI_TTS_MODEL?: string;
+  GEMINI_TTS_VOICE?: string;
+  TTS_PER_IP_PER_DAY?: string;
+  TTS_TIMEOUT_MS?: string;
 }
 
 export function intVar(value: string | undefined, fallback: number): number {

@@ -1,1 +1,1 @@
-export default ['packages/engine', 'packages/prompts', 'apps/worker'];
+export default ['packages/engine', 'packages/prompts', 'apps/worker', 'apps/web'];
