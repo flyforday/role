@@ -13,6 +13,11 @@ export interface Settings {
   /** Remplace VITE_WORKER_URL si renseigné. */
   workerUrl: string;
   displayName: string;
+  /** Narration vocale : « ia » = voix de conteur du relais (repli navigateur), « navigateur » = Web Speech seul. */
+  narratorEngine: 'ia' | 'navigateur';
+  narratorVoice: string;
+  /** Lire automatiquement chaque nouvelle réponse du MJ. */
+  narrationAuto: boolean;
 }
 
 const KEY = 'veillee:reglages';
@@ -25,6 +30,9 @@ export const DEFAULT_SETTINGS: Settings = {
   webllmModel: 'Qwen2.5-3B-Instruct-q4f16_1-MLC',
   workerUrl: '',
   displayName: '',
+  narratorEngine: 'ia',
+  narratorVoice: 'Algenib',
+  narrationAuto: false,
 };
 
 let current: Settings = load();

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { saveSettings, useSettings, workerBase, type ProviderChoice } from '../lib/settings';
 import { webGpuAvailable } from '../lib/webllm';
+import { NARRATOR_VOICES, narrate } from '../lib/narration';
 import { Button, Field, Input, Modal } from './ui';
 
 const CHOICES: Array<[ProviderChoice, string, string]> = [
@@ -82,6 +83,41 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
           </Field>
         )}
         {health && <p className="text-xs text-parchemin-300">{health}</p>}
+        <fieldset className="space-y-3 rounded-lg border border-nuit-700 p-3">
+          <legend className="px-1 text-sm font-medium text-parchemin-200">Voix du MJ</legend>
+          <Field label="Moteur" hint="La voix de conteur passe par le relais (quota gratuit limité) ; la voix du navigateur prend le relais si besoin.">
+            <select
+              value={s.narratorEngine}
+              onChange={(e) => saveSettings({ narratorEngine: e.target.value as typeof s.narratorEngine })}
+              className="w-full rounded-lg border border-nuit-600 bg-nuit-950 px-3 py-2 text-parchemin-100"
+            >
+              <option value="ia">Voix de conteur (IA)</option>
+              <option value="navigateur">Voix du navigateur (hors ligne)</option>
+            </select>
+          </Field>
+          {s.narratorEngine === 'ia' && (
+            <Field label="Conteur">
+              <select
+                value={s.narratorVoice}
+                onChange={(e) => saveSettings({ narratorVoice: e.target.value })}
+                className="w-full rounded-lg border border-nuit-600 bg-nuit-950 px-3 py-2 text-parchemin-100"
+              >
+                {NARRATOR_VOICES.map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-parchemin-100">
+            <input type="checkbox" checked={s.narrationAuto} onChange={(e) => saveSettings({ narrationAuto: e.target.checked })} className="accent-braise-500" />
+            Lire automatiquement chaque réponse du MJ
+          </label>
+          <Button variant="ghost" onClick={() => narrate('essai-voix', 'La nuit tombe sur la forêt. Au loin, une lueur vacille entre les arbres… Que faites-vous ?')}>
+            🔊 Essayer la voix
+          </Button>
+        </fieldset>
         <div className="flex justify-end">
           <Button variant="primary" onClick={onClose}>
             Fermer

@@ -3,6 +3,7 @@ import { completeWithFallback } from './fallback';
 import { RateLimiter } from './ratelimit';
 import { configuredProviders, DEFAULT_MODELS, makeProvider, PROVIDER_NAMES, type ProviderName } from './providers/registry';
 import { ProviderError, type ChatMessage, type LLMProvider } from './providers/types';
+import { synthesize, validateTtsBody } from './tts';
 
 const limiter = new RateLimiter();
 
@@ -31,8 +32,9 @@ export async function handle(request: Request, env: Env, rl: RateLimiter): Promi
 
   const url = new URL(request.url);
   if (url.pathname === '/api/health' && request.method === 'GET') {
-    return json({ ok: true, providers: configuredProviders(env).map((p) => ({ name: p.name, model: p.model })) }, 200, cors);
+    return json({ ok: true, providers: configuredProviders(env).map((p) => ({ name: p.name, model: p.model })), tts: Boolean(env.GEMINI_API_KEY) }, 200, cors);
   }
+  if (url.pathname === '/api/tts' && request.method === 'POST') return handleTts(request, env, rl, cors);
   if (url.pathname !== '/api/chat' || request.method !== 'POST') return json({ error: 'Introuvable' }, 404, cors);
 
   let body: ChatBody;
@@ -78,6 +80,29 @@ export async function handle(request: Request, env: Env, rl: RateLimiter): Promi
     });
   } catch (e) {
     const err = e instanceof ProviderError ? e : new ProviderError((e as Error).message, 500, 'relais');
+    return json({ error: err.message }, err.status || 503, cors);
+  }
+}
+
+async function handleTts(request: Request, env: Env, rl: RateLimiter, cors: Record<string, string>): Promise<Response> {
+  let body;
+  try {
+    body = validateTtsBody(await request.json(), env);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 400, cors);
+  }
+  const ip = request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for') ?? 'inconnu';
+  const retry =
+    rl.hit(`tts:${ip}`, intVar(env.RATE_LIMIT_PER_IP_PER_MIN, 20), 60_000) ||
+    rl.hit(`ttsj:${ip}`, intVar(env.TTS_PER_IP_PER_DAY, 80), 86_400_000);
+  if (retry) return json({ error: `Trop de lectures, réessayez dans ${retry} s.` }, 429, { ...cors, 'retry-after': String(retry) });
+  try {
+    const { wav, model } = await synthesize(body, env, request.signal);
+    return new Response(wav, {
+      headers: { ...cors, 'content-type': 'audio/wav', 'cache-control': 'no-store', 'x-provider': `gemini/${model}` },
+    });
+  } catch (e) {
+    const err = e instanceof ProviderError ? e : new ProviderError((e as Error).message, 500, 'tts');
     return json({ error: err.message }, err.status || 503, cors);
   }
 }
