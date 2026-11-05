@@ -7,3 +7,5 @@ export * from './state';
 export { makeId } from './ids';
 export * from './scenario';
 export * from './companions';
+export * from './archetypes';
+export * from './ancestries';
