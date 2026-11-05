@@ -44,6 +44,12 @@ export interface Character {
   playerId?: string;
   playerName?: string;
   concept: string;
+  /** Classe choisie dans le catalogue ; absente dans les anciennes sauvegardes. */
+  classId?: string;
+  /** Race choisie indépendamment de la classe, sans bonus de caractéristiques. */
+  raceId?: string;
+  /** Identifiant d’un portrait fourni avec le jeu (jamais une URL). */
+  portraitId?: string;
   background: string;
   abilities: Abilities;
   level: number;

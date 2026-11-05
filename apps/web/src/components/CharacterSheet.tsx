@@ -1,16 +1,19 @@
-import { ABILITIES, ABILITY_LABELS, xpForLevel, type Character } from '@veillee/engine';
+import { ABILITIES, ABILITY_LABELS, characterRace, xpForLevel, type Character } from '@veillee/engine';
 import { Bar, Tag } from './ui';
+import { CharacterPortrait } from './CharacterPortrait';
 
 export function CharacterSheet({ character, mine }: { character: Character; mine?: boolean }) {
   const c = character;
+  const race = characterRace(c.raceId);
   const nextXp = xpForLevel(c.level + 1);
   return (
     <article className={`rounded-xl border p-3 ${mine ? 'border-braise-500/50 bg-nuit-800/80' : 'border-nuit-700 bg-nuit-900/60'}`}>
-      <header className="flex items-baseline justify-between gap-2">
-        <div>
+      <header className="flex items-start justify-between gap-2">
+        <CharacterPortrait portraitId={c.portraitId} name={c.name} className="h-16 w-16 border border-nuit-600" />
+        <div className="min-w-0 flex-1">
           <h3 className="font-titre text-xl font-semibold text-parchemin-100">{c.name}</h3>
           <p className="text-xs text-parchemin-300">
-            {c.concept} · niveau {c.level}
+            {race && `${race.name} · `}{c.concept} · niveau {c.level}
             {c.companion ? ' · compagnon (MJ)' : c.playerName ? ` · ${c.playerName}` : ''}
           </p>
         </div>

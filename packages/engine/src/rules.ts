@@ -1,5 +1,7 @@
 import { ABILITIES, type Abilities, type Character, type GameState, type Item } from './types';
 import { makeId } from './ids';
+import { characterClass, CUSTOM_CLASS_ID } from './archetypes';
+import { characterRace, resolvePortrait } from './ancestries';
 
 export const MOD_MIN = -2;
 export const MOD_MAX = 3;
@@ -70,6 +72,9 @@ export const UNARMED: Item = { id: 'mains-nues', name: 'Mains nues', damage: '1d
 export interface NewCharacterInput {
   name: string;
   concept: string;
+  classId?: string;
+  raceId?: string;
+  portraitId?: string;
   background: string;
   abilities: Abilities;
   weaponId?: string;
@@ -81,6 +86,13 @@ export interface NewCharacterInput {
 export function createCharacter(input: NewCharacterInput): Character {
   const errors = validateAbilities(input.abilities);
   if (!input.name.trim()) errors.push('Le personnage doit avoir un nom');
+  if (input.classId !== undefined && input.classId !== CUSTOM_CLASS_ID && !characterClass(input.classId)) errors.push('Classe inconnue');
+  if (input.raceId !== undefined && !characterRace(input.raceId)) errors.push('Race inconnue');
+  if (input.portraitId !== undefined) {
+    const portrait = resolvePortrait(input.portraitId);
+    if (!portrait) errors.push('Portrait inconnu');
+    else if (portrait.raceId !== input.raceId) errors.push('Le portrait doit correspondre à la race choisie');
+  }
   if (errors.length) throw new Error(errors.join(' ; '));
   const weapon = STARTING_WEAPONS.find((w) => w.id === input.weaponId) ?? STARTING_WEAPONS[0];
   const maxHp = maxHpFor(1, input.abilities.endurance);
@@ -90,6 +102,9 @@ export function createCharacter(input: NewCharacterInput): Character {
     playerId: input.playerId,
     playerName: input.playerName,
     concept: input.concept.trim() || 'Aventurier',
+    classId: input.classId,
+    raceId: input.raceId,
+    portraitId: input.portraitId,
     background: input.background.trim(),
     abilities: { ...input.abilities },
     level: 1,

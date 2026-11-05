@@ -2,6 +2,7 @@ import {
   ABILITIES,
   ABILITY_LABELS,
   currentLocation,
+  characterRace,
   normalize,
   npcsHere,
   type GameState,
@@ -69,12 +70,14 @@ export function stateExtract(state: GameState): string {
   const out: string[] = ['ÉTAT DU JEU (fait foi)'];
   out.push('Personnages joueurs :');
   for (const pc of state.characters) {
+    const race = characterRace(pc.raceId);
     const abil = ABILITIES.map((a) => `${ABILITY_LABELS[a]} ${fmtMod(pc.abilities[a])}`).join(', ');
     const inv = pc.inventory
       .map((i) => `${i.name}${i.quantity && i.quantity > 1 ? ` ×${i.quantity}` : ''}${i.damage ? ` (${i.damage})` : ''}`)
       .join(', ');
     out.push(
       `- [${pc.id}] ${pc.name}${pc.companion ? ' (compagnon PNJ joué par toi, le MJ)' : pc.playerName ? ` (joué par ${pc.playerName})` : ''}, ${pc.concept}, niveau ${pc.level} — PV ${pc.hp}/${pc.maxHp}, Défense ${pc.defense}, Or ${pc.gold}` +
+        (race ? `\n  Race : ${race.name} (identité et apparence, sans bonus de règles)` : '') +
         `\n  Caractéristiques : ${abil}` +
         `\n  Arme : ${pc.weapon ?? 'aucune'} — Inventaire : ${inv || 'vide'}` +
         `\n  Conditions : ${pc.conditions.length ? pc.conditions.join(', ') : 'aucune'}` +
