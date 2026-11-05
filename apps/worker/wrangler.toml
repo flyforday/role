@@ -12,7 +12,7 @@ keep_vars = true
 # Ordre de bascule. Un fournisseur sans clé est simplement ignoré ; « cloudflare » (Workers AI)
 # n'a pas besoin de clé et sert de dernier secours. Un modèle qui répond 429 (quota épuisé) passe
 # en fin de liste pendant QUOTA_COOLDOWN_S secondes.
-PROVIDER_ORDER = "gemini,groq,mistral,cerebras,openrouter,nvidia,cloudflare"
+PROVIDER_ORDER = "gemini,groq,mistral,cerebras,openrouter,nvidia,zai,cohere,cloudflare"
 QUOTA_COOLDOWN_S = "120"
 # Liste de modèles essayés dans l'ordre (séparés par des virgules). Le premier est l'alias
 # tenu à jour par Google vers le dernier Flash ; le second, plus léger, sert de secours.
@@ -32,6 +32,10 @@ MISTRAL_MODEL = "mistral-medium-latest,mistral-small-latest"
 CEREBRAS_MODEL = "gpt-oss-120b"
 # NVIDIA (build.nvidia.com, gratuit pour le prototypage) : clé NVIDIA_API_KEY.
 NVIDIA_MODEL = "meta/llama-3.3-70b-instruct"
+# Z.ai (GLM, z.ai, modèles flash gratuits, sans carte) : clé ZAI_API_KEY.
+ZAI_MODEL = "glm-4.5-flash,glm-4.7-flash"
+# Cohere (clé d'essai gratuite sans carte, ~1 000 appels/mois) : clé COHERE_API_KEY.
+COHERE_MODEL = "command-a-03-2025"
 # Cloudflare Workers AI (liaison AI ci-dessous, sans clé, 10 000 neurones gratuits/jour).
 CLOUDFLARE_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/mistralai/mistral-small-3.1-24b-instruct"
 # Origines autorisées (séparées par des virgules). "*" pour tout autoriser en développement.
