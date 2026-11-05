@@ -1,17 +1,17 @@
-import type { GameState, NewCharacterInput } from '@veillee/engine';
+import type { GameState, MapMoveInput, NewCharacterInput, SceneMap } from '@veillee/engine';
 import type { PlayerAction } from '@veillee/prompts';
 import { workerBase } from './settings';
 import type { UndoEntry } from './storage';
 
 /** Parties en ligne : une « salle » sur le relais, rejointe avec un code de 6 caractères. Aucun compte. */
 
-export type ActionKind = 'action' | 'attack' | 'xcard' | 'character';
+export type ActionKind = 'action' | 'attack' | 'xcard' | 'character' | 'map_move';
 
 export interface RoomAction {
   id: number;
   playerId: string;
   kind: ActionKind;
-  payload: PlayerAction | NewCharacterInput;
+  payload: PlayerAction | NewCharacterInput | MapMoveInput;
   at: string;
 }
 
@@ -23,6 +23,7 @@ export interface RoomMember {
 }
 
 export type ServerMessage =
+  | { t: 'map_state'; locationId: string; map: SceneMap; resolved: number[] }
   | { t: 'bienvenue'; you: string; code: string; state: GameState; undo: UndoEntry[]; actions: RoomAction[]; hostId: string; members: RoomMember[] }
   | { t: 'membres'; hostId: string; members: RoomMember[] }
   | { t: 'action'; action: RoomAction }
@@ -36,6 +37,7 @@ export type ServerMessage =
   | { t: 'pong' };
 
 export type ClientMessage =
+  | { t: 'map_state'; locationId: string; map: SceneMap; resolved: number[] }
   | { t: 'action'; kind: ActionKind; payload: RoomAction['payload'] }
   | { t: 'retirer'; ids: number[]; reason?: 'rejetee' }
   | { t: 'etat'; state: GameState; undo?: UndoEntry[]; resolved?: number[] }

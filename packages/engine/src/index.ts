@@ -9,3 +9,4 @@ export * from './scenario';
 export * from './companions';
 export * from './archetypes';
 export * from './ancestries';
+export * from './map';

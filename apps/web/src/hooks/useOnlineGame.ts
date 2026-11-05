@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { addCharacter, createCharacter, isConscious, type GameState, type NewCharacterInput, type TurnMode } from '@veillee/engine';
+import { addCharacter, createCharacter, isConscious, moveOnMap, type MapMoveInput, type GameState, type NewCharacterInput, type TurnMode } from '@veillee/engine';
 import type { PlayerAction, TurnEvent } from '@veillee/prompts';
 import { emptyLive, errorMessage, playTurn, reduceLive, type GameController, type LiveTurn, type PendingAction } from '../lib/controller';
 import { createLlm } from '../lib/llm';
@@ -71,10 +71,15 @@ export function useOnlineGame(code: string, displayName: string): OnlineGame {
           setActions((list) => (list.some((a) => a.id === m.action.id) ? list : [...list, m.action]));
           break;
         case 'retirees':
+          if (m.reason === 'rejetee') setError('Une demande a été refusée : vérifiez la position du pion, les obstacles et les règles de la scène.');
           setActions((list) => list.filter((a) => !m.ids.includes(a.id)));
           break;
         case 'etat':
           setRoom((r) => ({ state: m.state, undo: r?.undo ?? [] }));
+          setActions((list) => list.filter((a) => !m.resolved.includes(a.id)));
+          break;
+        case 'map_state':
+          setRoom((r) => r ? { ...r, state: { ...r.state, maps: { ...r.state.maps, [m.locationId]: m.map } } } : r);
           setActions((list) => list.filter((a) => !m.resolved.includes(a.id)));
           break;
         case 'live':
@@ -110,11 +115,13 @@ export function useOnlineGame(code: string, displayName: string): OnlineGame {
 
   /** Écrit l'état dans la salle et l'applique tout de suite chez l'hôte. */
   const commit = useCallback(
-    (state: GameState, undo: UndoEntry[], resolved: number[] = []) => {
+    (state: GameState, undo: UndoEntry[], resolved: number[] = [], mapOnly = false) => {
       const trimmed = undo.slice(-5);
       setRoom({ state, undo: trimmed });
       if (resolved.length) setActions((list) => list.filter((a) => !resolved.includes(a.id)));
-      send({ t: 'etat', state, undo: trimmed, resolved });
+      const map = state.currentLocationId && state.maps?.[state.currentLocationId];
+      if (mapOnly && map && state.currentLocationId) send({ t: 'map_state', locationId: state.currentLocationId, map, resolved });
+      else if (!mapOnly) send({ t: 'etat', state, undo: trimmed, resolved });
     },
     [send],
   );
@@ -201,7 +208,7 @@ export function useOnlineGame(code: string, displayName: string): OnlineGame {
   );
 
   const state = room?.state ?? null;
-  const turnActions = useMemo(() => actions.filter((a) => a.kind !== 'character'), [actions]);
+  const turnActions = useMemo(() => actions.filter((a) => a.kind !== 'character' && a.kind !== 'map_move'), [actions]);
 
   /**
    * Personnages joueurs conscients qui n'ont pas encore déclaré d'action ce tour-ci. Un joueur
@@ -221,6 +228,23 @@ export function useOnlineGame(code: string, displayName: string): OnlineGame {
     if (!isHost || !room || busyRef.current || status !== 'connecte') return;
     const charReqs = actions.filter((a) => a.kind === 'character');
     if (charReqs.length) return addCharacters(room, charReqs);
+    const movements = actions.filter((a) => a.kind === 'map_move');
+    if (movements.length) {
+      let next = room.state;
+      const accepted: number[] = [], rejected: number[] = [];
+      for (const req of movements) {
+        const owned = next.characters.filter((c) => c.playerId === req.playerId).map((c) => c.id);
+        const result = moveOnMap(next, req.payload as MapMoveInput, owned, req.playerId === hostId);
+        if (result.error) { rejected.push(req.id); if (req.playerId === userId) setError(result.error); }
+        else { next = result.state; accepted.push(req.id); }
+      }
+      if (rejected.length) {
+        send({ t: 'retirer', ids: rejected, reason: 'rejetee' });
+        setActions((list) => list.filter((a) => !rejected.includes(a.id)));
+      }
+      commit(next, room.undo, accepted, true);
+      return;
+    }
     if (paused || !turnActions.length) return;
     const xcard = turnActions.find((a) => a.kind === 'xcard');
     if (xcard) {
@@ -233,7 +257,7 @@ export function useOnlineGame(code: string, displayName: string): OnlineGame {
       return;
     }
     if (waitingFor.length === 0) void resolve(room, turnActions, turnActions.map((a) => a.payload as PlayerAction));
-  }, [isHost, room, actions, turnActions, waitingFor, paused, status, resolve, addCharacters]);
+  }, [isHost, room, actions, turnActions, waitingFor, paused, status, resolve, addCharacters, commit, send, hostId, userId]);
 
   const controlledIds = useMemo(() => (state ? state.characters.filter((c) => c.playerId === userId).map((c) => c.id) : []), [state, userId]);
 
@@ -275,6 +299,12 @@ export function useOnlineGame(code: string, displayName: string): OnlineGame {
     async submit(action) {
       setError(null);
       send({ t: 'action', kind: action.kind, payload: action });
+    },
+    async moveOnMap(move) {
+      if (status !== 'connecte' || (isHost ? busyRef.current : !!live) || !hostOnline) {
+        setError('Attendez que l’hôte soit connecté et que le MJ ait terminé.'); return;
+      }
+      send({ t: 'action', kind: 'map_move', payload: move });
     },
     async withdraw(id) {
       send({ t: 'retirer', ids: [Number(id)] });

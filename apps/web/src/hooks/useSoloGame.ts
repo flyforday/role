@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { GameState, TurnMode } from '@veillee/engine';
+import { moveOnMap, type GameState, type TurnMode } from '@veillee/engine';
 import type { PlayerAction } from '@veillee/prompts';
 import { emptyLive, errorMessage, playTurn, reduceLive, type GameController, type LiveTurn } from '../lib/controller';
 import { createLlm } from '../lib/llm';
@@ -76,6 +76,13 @@ export function useSoloGame(initial: GameState): GameController {
     pending: [],
     canUndo: undoStack.length > 0 && !busy,
     submit,
+    async moveOnMap(move) {
+      if (busy) return;
+      const base = stateRef.current;
+      const result = moveOnMap(base, move, base.characters.filter((c) => !c.companion).map((c) => c.id), true);
+      if (result.error) setError(result.error);
+      else { stateRef.current = result.state; setState(result.state); setError(null); }
+    },
     undo,
     regenerate,
     replaceState: async (s) => {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ABILITIES, DIFFICULTIES, type Ability, type StateChange } from '@veillee/engine';
+import { ABILITIES, DIFFICULTIES, MAP_TERRAINS, MAP_WIDTH, MAP_HEIGHT, type Ability, type StateChange } from '@veillee/engine';
 import { normalize } from '@veillee/engine';
 
 /** Convertit « Agilité », « AGILITE », « dex »… vers une caractéristique connue. */
@@ -61,6 +61,8 @@ const EnemySchema = z.object({
 });
 
 export const StateChangeSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('map_tiles'), location_id: str.min(1), tiles: z.array(z.object({ x: z.number().int().min(0).max(MAP_WIDTH - 1), y: z.number().int().min(0).max(MAP_HEIGHT - 1), terrain: z.enum(MAP_TERRAINS) })).min(1).max(24) }),
+  z.object({ op: z.literal('map_position'), target: str.min(1), x: z.number().int().min(0).max(MAP_WIDTH - 1), y: z.number().int().min(0).max(MAP_HEIGHT - 1) }),
   z.object({ op: z.literal('hp'), target: str.min(1), delta: intLike, reason: str.optional() }),
   z.object({ op: z.literal('add_item'), target: str.min(1), item: ItemSchema }),
   z.object({ op: z.literal('remove_item'), target: str.min(1), item_name: str.min(1), quantity: intLike.optional() }),

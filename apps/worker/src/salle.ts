@@ -19,8 +19,8 @@ const MAX_UNDO = 5;
 const CHUNK = 500_000;
 const IDLE_MS = 30 * 86_400_000; // une salle inactive 30 jours est effacée
 
-export type ActionKind = 'action' | 'attack' | 'xcard' | 'character';
-const KINDS: ActionKind[] = ['action', 'attack', 'xcard', 'character'];
+export type ActionKind = 'action' | 'attack' | 'xcard' | 'character' | 'map_move';
+const KINDS: ActionKind[] = ['action', 'attack', 'xcard', 'character', 'map_move'];
 
 export interface Member {
   name: string;
@@ -36,6 +36,7 @@ export interface Meta {
   nextActionId: number;
   createdAt: string;
   updatedAt: string;
+  mapMovedAt?: Record<string, number>;
 }
 
 export interface PendingAction {
@@ -111,6 +112,7 @@ function json(data: unknown, status = 200): Response {
 }
 
 export class Salle {
+  private messages: Promise<void> = Promise.resolve();
   private meta: Meta | null | undefined;
   private actions: PendingAction[] | undefined;
 
@@ -215,6 +217,14 @@ export class Salle {
   // ---------- WebSocket ----------
 
   async webSocketMessage(ws: SalleSocket, raw: string | ArrayBuffer) {
+    // Sérialiser les écritures : deux joueurs ne doivent jamais écraser leurs demandes.
+    this.messages = this.messages.then(() => this.handleMessage(ws, raw)).catch(() => {
+      this.send(ws, { t: 'erreur', message: 'La demande n’a pas pu être traitée. Réessayez.' });
+    });
+    await this.messages;
+  }
+
+  private async handleMessage(ws: SalleSocket, raw: string | ArrayBuffer) {
     let msg: Record<string, unknown>;
     try {
       if (typeof raw !== 'string' || raw.length > MAX_STATE_CHARS + 100_000) throw new Error();
@@ -239,7 +249,13 @@ export class Salle {
       case 'etat':
         if (!isHost) return this.send(ws, { t: 'erreur', message: "Seul l'hôte peut modifier la partie." });
         return this.writeState(ws, meta, msg);
+      case 'map_state':
+        if (!isHost) return this.send(ws, { t: 'erreur', message: 'Seul l’hôte peut valider la carte.' });
+        return this.writeMap(ws, meta, msg);
       case 'live':
+        if (isHost) await this.ctx.storage.put({ mjBusy: msg.data != null });
+        if (isHost) this.broadcast({ t: msg.t, data: msg.data ?? null }, ws);
+        return;
       case 'des':
         if (isHost) this.broadcast({ t: msg.t, data: msg.data ?? null }, ws);
         return;
@@ -299,6 +315,7 @@ export class Salle {
       }
     }
     ws.serializeAttachment({ playerId } satisfies Attachment);
+    if (playerId === meta.hostId) await this.ctx.storage.put({ mjBusy: false });
     const [state, actions] = await Promise.all([this.getBig('etat'), this.loadActions()]);
     const undo = playerId === meta.hostId ? await this.getBig<unknown[]>('annul') : null;
     this.send(ws, { t: 'bienvenue', you: playerId, code: meta.code, state, undo: undo ?? [], actions, ...this.membersPayload(meta) });
@@ -312,7 +329,21 @@ export class Salle {
     if (JSON.stringify(payload).length > 8000) return this.send(ws, { t: 'erreur', message: 'Action trop longue.' });
     let list = await this.loadActions();
     if (list.length >= MAX_PENDING) return this.send(ws, { t: 'erreur', message: "Trop d'actions en attente." });
-    const state = await this.getBig<{ characters: Array<{ id: string; playerId?: string | null }> }>('etat');
+    const state = await this.getBig<{ characters: Array<{ id: string; playerId?: string | null }>; npcs?: Array<{ id: string; status: string; locationId?: string }>; currentLocationId?: string }>('etat');
+    if (kind === 'map_move') {
+      if (!this.onlineIds().has(meta.hostId) || await this.ctx.storage.get('mjBusy')) return this.send(ws, { t: 'erreur', message: 'Attendez que l’hôte soit connecté et que le MJ ait terminé.' });
+      if (Date.now() - (meta.mapMovedAt?.[me] ?? 0) < 200) return this.send(ws, { t: 'erreur', message: 'Déplacement trop rapide. Réessayez.' });
+      if (!['x', 'y', 'fromX', 'fromY'].every((k) => Number.isInteger(payload[k]) && Number(payload[k]) >= 0 && Number(payload[k]) < (k.includes('Y') || k === 'y' ? 10 : 14)) || typeof payload.locationId !== 'string' || payload.locationId !== state?.currentLocationId) {
+        return this.send(ws, { t: 'erreur', message: 'Déplacement de carte invalide ou lieu obsolète.' });
+      }
+      const own = state?.characters.some((c) => c.id === payload.characterId && c.playerId === me);
+      const npc = me === meta.hostId && state?.npcs?.some((n) => n.id === payload.characterId && n.status === 'vivant' && (!n.locationId || n.locationId === state.currentLocationId));
+      if (!own && !npc) return this.send(ws, { t: 'erreur', message: 'Ce pion n’est pas le vôtre.' });
+      if (list.some((a) => a.kind === 'map_move' && a.playerId === me)) return this.send(ws, { t: 'erreur', message: 'Un déplacement est déjà en attente.' });
+      meta.mapMovedAt = { ...meta.mapMovedAt, [me]: Date.now() };
+      const action: PendingAction = { id: meta.nextActionId++, playerId: me, kind, payload, at: new Date().toISOString() };
+      await this.saveActions([...list, action]); await this.saveMeta(meta); this.broadcast({ t: 'action', action }); return;
+    }
     if (kind === 'character') {
       if (state?.characters.some((c) => c.playerId === me)) return this.send(ws, { t: 'erreur', message: 'Vous avez déjà un personnage.' });
       list = list.filter((a) => !(a.kind === 'character' && a.playerId === me));
@@ -320,7 +351,7 @@ export class Salle {
       const pc = state?.characters.find((c) => c.id === payload.characterId);
       if (!pc || pc.playerId !== me) return this.send(ws, { t: 'erreur', message: "Ce personnage n'est pas le vôtre." });
       // une seule action par personnage : la nouvelle remplace l'ancienne tant que le MJ n'a pas répondu
-      const replaced = list.filter((a) => a.kind !== 'character' && a.kind !== 'xcard' && kind !== 'xcard' && a.payload.characterId === pc.id);
+      const replaced = list.filter((a) => a.kind !== 'character' && a.kind !== 'map_move' && a.kind !== 'xcard' && kind !== 'xcard' && a.payload.characterId === pc.id);
       if (replaced.length) {
         list = list.filter((a) => !replaced.includes(a));
         this.broadcast({ t: 'retirees', ids: replaced.map((a) => a.id) });
@@ -339,6 +370,25 @@ export class Salle {
     if (!gone.length) return;
     await this.saveActions(list.filter((a) => !gone.includes(a)));
     this.broadcast({ t: 'retirees', ids: gone.map((a) => a.id), reason: msg.reason === 'rejetee' ? 'rejetee' : undefined });
+  }
+
+  private async writeMap(ws: SalleSocket, meta: Meta, msg: Record<string, unknown>) {
+    const state = await this.getBig<{ currentLocationId?: string; maps?: Record<string, unknown>; updatedAt?: string }>('etat');
+    const map = msg.map as { tiles?: unknown[]; positions?: object } | null;
+    if (!state || msg.locationId !== state.currentLocationId || !map || !Array.isArray(map.tiles) || map.tiles.length !== 140 || !map.positions || typeof map.positions !== 'object' || JSON.stringify(map).length > 32_000) {
+      return this.send(ws, { t: 'erreur', message: 'Carte invalide ou lieu obsolète.' });
+    }
+    const locationId = state.currentLocationId!;
+    state.maps = { ...state.maps, [locationId]: map };
+    state.updatedAt = new Date().toISOString();
+    const list = await this.loadActions();
+    const ids = Array.isArray(msg.resolved) ? msg.resolved : [];
+    const resolved = list.filter((a) => a.kind === 'map_move' && ids.includes(a.id)).map((a) => a.id);
+    await this.putBig('etat', state);
+    await this.saveActions(list.filter((a) => !resolved.includes(a.id)));
+    await this.saveMeta(meta);
+    this.broadcast({ t: 'map_state', locationId, map, resolved }, ws);
+    this.send(ws, { t: 'ok', ref: null, resolved });
   }
 
   private async writeState(ws: SalleSocket, meta: Meta, msg: Record<string, unknown>) {
@@ -365,6 +415,7 @@ export class Salle {
     if (old) old.role = 'joueur';
     meta.members[me].role = 'hote';
     meta.hostId = me;
+    await this.ctx.storage.put({ mjBusy: false });
     await this.saveMeta(meta);
     const undo = (await this.getBig<unknown[]>('annul')) ?? [];
     this.send(ws, { t: 'hote', undo });

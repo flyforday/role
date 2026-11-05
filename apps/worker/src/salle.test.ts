@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isValidCode, normalizeCode, randomCode, Salle, type SalleContext, type SalleSocket } from './salle';
+import { sampleState } from '../../../packages/engine/src/fixtures.test-utils';
+import { mapTokens, moveOnMap } from '../../../packages/engine/src/map';
 
 class FakeSocket implements SalleSocket {
   sent: any[] = [];
@@ -83,6 +85,68 @@ describe('codes de partie', () => {
 });
 
 describe('salle multijoueur', () => {
+  it('relaie un déplacement validé à deux joueurs et retrouve la carte après reconnexion', async () => {
+    const { salle, connect } = await setup();
+    const host = await connect(HOST, 'Léo'), ami = await connect(AMI, 'Sam');
+    const world = sampleState();
+    world.characters[0].playerId = AMI.playerId;
+    await salle.webSocketMessage(host, JSON.stringify({ t: 'etat', state: world }));
+    const pc = mapTokens(world).find((t) => t.kind === 'pc')!;
+    const payload = { characterId: pc.id, locationId: world.currentLocationId, fromX: pc.x, fromY: pc.y, x: pc.x + 1, y: pc.y };
+    await salle.webSocketMessage(ami, JSON.stringify({ t: 'action', kind: 'map_move', payload }));
+    const req = host.last('action').action;
+    expect(req.kind).toBe('map_move');
+    const result = moveOnMap(world, req.payload, [pc.id]);
+    expect(result.error).toBeUndefined();
+    await salle.webSocketMessage(host, JSON.stringify({ t: 'map_state', locationId: world.currentLocationId, map: result.state.maps![world.currentLocationId!], resolved: [req.id] }));
+    expect(ami.last('map_state').map).toEqual(result.state.maps![world.currentLocationId!]);
+    expect(ami.last('map_state')).not.toHaveProperty('log');
+    await salle.webSocketMessage(ami, JSON.stringify({ t: 'map_state', locationId: world.currentLocationId, map: result.state.maps![world.currentLocationId!], resolved: [] }));
+    expect(ami.last('erreur').message).toMatch(/Seul l’hôte/);
+    const again = await connect(AMI, 'Sam');
+    expect(again.last('bienvenue').state.maps).toEqual(result.state.maps);
+  });
+
+  it('protège les pions et refuse les coordonnées et lieux invalides', async () => {
+    const { salle, connect, ctx } = await setup();
+    const host = await connect(HOST, 'Léo'), ami = await connect(AMI, 'Sam');
+    await salle.webSocketMessage(host, JSON.stringify({ t: 'etat', state: { ...state([{ id: 'pc_leo', playerId: HOST.playerId }]), currentLocationId: 'quai' } }));
+    const payload = { characterId: 'pc_leo', locationId: 'quai', fromX: 1, fromY: 1, x: 2, y: 1 };
+    await salle.webSocketMessage(ami, JSON.stringify({ t: 'action', kind: 'map_move', payload }));
+    expect(ami.last('erreur').message).toMatch(/pas le vôtre/);
+    for (const extra of [{ x: 14 }, { y: -1 }, { x: 1.5 }, { locationId: 'ailleurs' }]) {
+      await salle.webSocketMessage(host, JSON.stringify({ t: 'action', kind: 'map_move', payload: { ...payload, ...extra } }));
+      expect(host.last('erreur').message).toMatch(/invalide|obsolète/);
+    }
+    expect(ctx.data.get('actions')).toEqual([]);
+  });
+
+  it('conserve l’action narrative quand un mouvement arrive, et sérialise les demandes concurrentes', async () => {
+    const { salle, connect, ctx } = await setup();
+    const host = await connect(HOST, 'Léo'), ami = await connect(AMI, 'Sam');
+    await salle.webSocketMessage(host, JSON.stringify({ t: 'etat', state: { ...state([{ id: 'pc_leo', playerId: HOST.playerId }, { id: 'pc_sam', playerId: AMI.playerId }]), currentLocationId: 'quai' } }));
+    await Promise.all([
+      salle.webSocketMessage(host, JSON.stringify({ t: 'action', kind: 'action', payload: { characterId: 'pc_leo', kind: 'action', text: 'je parle' } })),
+      salle.webSocketMessage(ami, JSON.stringify({ t: 'action', kind: 'map_move', payload: { characterId: 'pc_sam', locationId: 'quai', fromX: 1, fromY: 1, x: 2, y: 1 } })),
+    ]);
+    expect((ctx.data.get('actions') as any[]).map((a) => a.kind)).toEqual(['action', 'map_move']);
+    await salle.webSocketMessage(ami, JSON.stringify({ t: 'action', kind: 'action', payload: { characterId: 'pc_sam', kind: 'action', text: 'je regarde' } }));
+    expect(ctx.data.get('actions')).toHaveLength(3);
+  });
+
+  it('bloque la carte pendant la narration, puis libère le verrou après reconnexion de l’hôte', async () => {
+    const { salle, connect } = await setup();
+    let host = await connect(HOST, 'Léo');
+    await salle.webSocketMessage(host, JSON.stringify({ t: 'etat', state: { ...state([{ id: 'pc_leo', playerId: HOST.playerId }]), currentLocationId: 'quai' } }));
+    await salle.webSocketMessage(host, JSON.stringify({ t: 'live', data: { streaming: 'Le MJ raconte…' } }));
+    const msg = JSON.stringify({ t: 'action', kind: 'map_move', payload: { characterId: 'pc_leo', locationId: 'quai', fromX: 1, fromY: 1, x: 2, y: 1 } });
+    await salle.webSocketMessage(host, msg);
+    expect(host.last('erreur').message).toMatch(/MJ ait terminé/);
+    host = await connect(HOST, 'Léo');
+    await salle.webSocketMessage(host, msg);
+    expect(host.last('action').action.kind).toBe('map_move');
+  });
+
   it('refuse de recréer une salle existante', async () => {
     const { salle } = await setup();
     const res = await salle.fetch(new Request('https://salle/creer', { method: 'POST', body: JSON.stringify({ code: 'ABC234', ...AMI, state: state() }) }));
