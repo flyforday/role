@@ -38,6 +38,9 @@ export function Home() {
           <Button variant="primary" className="px-6 py-3 text-base" onClick={() => navigate('/nouvelle')}>
             Nouvelle aventure solo
           </Button>
+          <Button variant="primary" className="px-6 py-3 text-base" onClick={() => navigate('/nouvelle-en-ligne')}>
+            Créer une partie à plusieurs
+          </Button>
           <Button onClick={() => fileRef.current?.click()}>Importer une sauvegarde</Button>
           <Button variant="ghost" onClick={() => setSettings(true)}>
             Réglages {prefs.provider === 'demo' ? '(démo)' : ''}
@@ -105,15 +108,10 @@ function OnlinePanel() {
   const [rooms, setRooms] = useState<RecentRoom[]>(recentRooms);
   const valid = isValidCode(code);
   return (
-    <Card title="Jouer entre amis">
+    <Card title="Rejoindre une partie">
       <p className="mb-3 text-sm text-parchemin-300">
-        Créez une partie et donnez son code à vos amis : chacun déclare son action, puis le MJ raconte la suite pour tout le groupe. Aucun compte à créer.
+        Saisissez le code partagé par l’hôte pour retrouver vos amis autour de la table. Aucun compte à créer.
       </p>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="primary" onClick={() => navigate('/nouvelle-en-ligne')}>
-          Créer une partie à plusieurs
-        </Button>
-      </div>
       <form
         className="mt-3 flex gap-2"
         onSubmit={(e) => {
