@@ -5,7 +5,7 @@ import { NARRATOR_VOICES, narrate } from '../lib/narration';
 import { Button, Field, Input, Modal } from './ui';
 
 const CHOICES: Array<[ProviderChoice, string, string]> = [
-  ['relais', 'Relais partagé', "Le Worker du groupe appelle Gemini, puis Groq ou OpenRouter en secours (offres gratuites)."],
+  ['relais', 'Relais partagé', "Le Worker du groupe appelle Gemini, puis Groq, Mistral, Cerebras, OpenRouter, NVIDIA et Cloudflare en secours (offres gratuites)."],
   ['byok', 'Ma propre clé', "Votre clé reste dans ce navigateur et n'est envoyée au relais qu'au moment de chaque requête, jamais enregistrée côté serveur."],
   ['webllm', 'Modèle local (expérimental)', 'Le modèle tourne dans votre navigateur via WebGPU : sans quota, mais lent à charger (~2 Go) et moins bon conteur.'],
   ['demo', 'MJ de démonstration', "Un MJ scripté, hors ligne, pour essayer l'interface sans IA."],
@@ -61,7 +61,10 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
               >
                 <option value="gemini">Google Gemini</option>
                 <option value="groq">Groq</option>
+                <option value="mistral">Mistral</option>
+                <option value="cerebras">Cerebras</option>
                 <option value="openrouter">OpenRouter</option>
+                <option value="nvidia">NVIDIA</option>
               </select>
             </Field>
             <Field label="Clé d'API" hint="Stockée uniquement dans ce navigateur.">
