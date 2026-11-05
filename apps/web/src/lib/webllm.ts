@@ -73,7 +73,8 @@ export function webLlm(model: string): LlmCall {
       stream: true,
       temperature: options.purpose === 'summary' ? 0.3 : 0.8,
       max_tokens: MAX_OUTPUT_TOKENS,
-      ...(options.json ? { response_format: { type: 'json_object' } } : {}),
+      // Pas de response_format « json_object » : la grammaire de WebLLM 0.2.86 plante à l'initialisation
+      // (« Cannot pass non-string to std::string »). Le prompt demande déjà du JSON et extractJson est tolérant.
     });
     let full = '';
     for await (const chunk of stream) {
