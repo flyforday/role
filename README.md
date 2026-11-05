@@ -141,7 +141,7 @@ La limitation de débit est en mémoire de l'isolat Cloudflare : c'est une prote
 
 Rien à configurer : le multijoueur fait partie du Worker `role`. Chaque partie est une **salle** (Durable Object Cloudflare SQLite, offre gratuite) identifiée par un code de 6 caractères, sans compte ni e-mail.
 
-Déroulement : l'hôte clique **Créer une partie à plusieurs**, choisit un scénario ou un monde, crée son personnage, puis donne le **code** (affiché sous le récit, cliquable pour le copier) ou le lien **Inviter**. Les amis tapent le code dans *Jouer entre amis* (accueil), choisissent un nom et créent leur personnage. Deux modes (outils de l'hôte) :
+Déroulement : l'hôte clique **Créer une partie à plusieurs**, choisit un scénario ou un monde, crée son personnage, puis donne le **code** (affiché sous le récit, cliquable pour le copier) ou le lien **Inviter**. Les amis tapent le code dans *Rejoindre une partie* (accueil), choisissent un nom et créent leur personnage. Deux modes (outils de l'hôte) :
 - **par tour** (par défaut) : chacun déclare son action, le MJ répond une fois que tous les joueurs connectés ont joué (ou quand l'hôte clique « Résoudre le tour »). Tant que le MJ n'a pas répondu, chacun peut retirer son action (✎) ou en envoyer une nouvelle, qui remplace l'ancienne ;
 - **libre** : chaque action est résolue dès qu'elle arrive.
 
