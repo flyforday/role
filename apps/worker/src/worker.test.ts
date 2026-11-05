@@ -279,6 +279,23 @@ describe('fournisseurs gratuits supplémentaires', () => {
     expect(res.headers.get('x-provider-failures')).toBe('cloudflare @cf/meta/llama-3.3-70b-instruct-fp8-fast: 429');
   });
 
+  it('appelle Z.ai sans réflexion puis Cohere en secours', async () => {
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url, body: JSON.parse(init.body as string) });
+        return url.includes('z.ai') ? new Response('quota', { status: 429 }) : openai(['Cohere']);
+      }),
+    );
+    const res = await handle(chat({ messages }), { ZAI_API_KEY: 'zai-key-12345', ZAI_MODEL: 'glm-4.5-flash', COHERE_API_KEY: 'co-key-123456' }, new RateLimiter());
+    expect(res.headers.get('x-provider')).toBe('cohere/command-a-03-2025');
+    expect(calls[0].url).toBe('https://api.z.ai/api/paas/v4/chat/completions');
+    expect(calls[0].body.thinking).toEqual({ type: 'disabled' });
+    expect(calls[1].url).toBe('https://api.cohere.ai/compatibility/v1/chat/completions');
+    expect(calls[1].body.thinking).toBeUndefined();
+  });
+
   it('accepte une clé personnelle Mistral mais pas Workers AI', async () => {
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => openai(['ok']));
     vi.stubGlobal('fetch', fetchMock);

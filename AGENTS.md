@@ -16,7 +16,7 @@ Le cahier des charges fait foi : `docs/PROMPT_PROJET.md`. Règles non négociabl
 
 ```
 apps/web         → front Vite + React + TypeScript + Tailwind
-apps/worker      → Cloudflare Worker « role » : relais IA (Gemini → Groq → Mistral → Cerebras → OpenRouter → NVIDIA → Workers AI), limitation de débit, TTS, sert aussi le front
+apps/worker      → Cloudflare Worker « role » : relais IA (Gemini → Groq → Mistral → Cerebras → OpenRouter → NVIDIA → Z.ai → Cohere → Workers AI), limitation de débit, TTS, sert aussi le front
 packages/engine  → moteur pur TypeScript (règles, dés, combat, applyChanges), sans dépendance au front
 packages/prompts → prompt du MJ, schémas Zod, contexte, boucle de tour, scénarios prêts à jouer
 docs/            → cahier des charges
@@ -49,7 +49,7 @@ npm run typecheck && npm test && npm run build
 ## Secrets
 
 Ne jamais commiter de clé ni de jeton. Fichiers ignorés par git : `.dev.vars`, `.env`, `.env.local`.
-Secrets existants (fournis par Léo, jamais dans le dépôt) : `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, et en option `MISTRAL_API_KEY`, `CEREBRAS_API_KEY`, `NVIDIA_API_KEY` (secrets du Worker ; Workers AI passe par la liaison `AI`, sans clé), `CLOUDFLARE_API_TOKEN` (secret GitHub Actions). L'identifiant de compte Cloudflare dans `wrangler.toml` est public.
+Secrets existants (fournis par Léo, jamais dans le dépôt) : `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, et en option `MISTRAL_API_KEY`, `CEREBRAS_API_KEY`, `NVIDIA_API_KEY`, `ZAI_API_KEY`, `COHERE_API_KEY` (secrets du Worker ; Workers AI passe par la liaison `AI`, sans clé), `CLOUDFLARE_API_TOKEN` (secret GitHub Actions). L'identifiant de compte Cloudflare dans `wrangler.toml` est public.
 
 ## Déploiement — à lire absolument
 

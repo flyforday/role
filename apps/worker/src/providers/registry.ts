@@ -1,15 +1,15 @@
 import type { Env } from '../env';
 import { GeminiProvider } from './gemini';
-import { cerebras, groq, mistral, nvidia, openrouter } from './openai-compatible';
+import { cerebras, cohere, groq, mistral, nvidia, openrouter, zai } from './openai-compatible';
 import type { LLMProvider } from './types';
 import { WorkersAiProvider } from './workers-ai';
 
 /** Tous les fournisseurs du relais, dans l'ordre de bascule par défaut. */
-export const PROVIDER_NAMES = ['gemini', 'groq', 'mistral', 'cerebras', 'openrouter', 'nvidia', 'cloudflare'] as const;
+export const PROVIDER_NAMES = ['gemini', 'groq', 'mistral', 'cerebras', 'openrouter', 'nvidia', 'zai', 'cohere', 'cloudflare'] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
 /** Fournisseurs utilisables avec une clé personnelle (Workers AI passe par la liaison du Worker, sans clé). */
-export const BYOK_PROVIDERS = ['gemini', 'groq', 'mistral', 'cerebras', 'openrouter', 'nvidia'] as const;
+export const BYOK_PROVIDERS = ['gemini', 'groq', 'mistral', 'cerebras', 'openrouter', 'nvidia', 'zai', 'cohere'] as const;
 export type ByokProviderName = (typeof BYOK_PROVIDERS)[number];
 
 export const DEFAULT_MODELS: Record<ProviderName, string> = {
@@ -19,6 +19,8 @@ export const DEFAULT_MODELS: Record<ProviderName, string> = {
   cerebras: 'gpt-oss-120b',
   openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
   nvidia: 'meta/llama-3.3-70b-instruct',
+  zai: 'glm-4.5-flash',
+  cohere: 'command-a-03-2025',
   cloudflare: '@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/mistralai/mistral-small-3.1-24b-instruct',
 };
 
@@ -43,6 +45,10 @@ export function makeProvider(name: ByokProviderName, apiKey: string, model: stri
       return openrouter(apiKey, model);
     case 'nvidia':
       return nvidia(apiKey, model);
+    case 'zai':
+      return zai(apiKey, model);
+    case 'cohere':
+      return cohere(apiKey, model);
   }
 }
 
@@ -59,6 +65,8 @@ export function configuredProviders(env: Env): LLMProvider[] {
     cerebras: env.CEREBRAS_API_KEY,
     openrouter: env.OPENROUTER_API_KEY,
     nvidia: env.NVIDIA_API_KEY,
+    zai: env.ZAI_API_KEY,
+    cohere: env.COHERE_API_KEY,
   };
   const models: Record<ProviderName, string | undefined> = {
     gemini: env.GEMINI_MODEL,
@@ -67,6 +75,8 @@ export function configuredProviders(env: Env): LLMProvider[] {
     cerebras: env.CEREBRAS_MODEL,
     openrouter: env.OPENROUTER_MODEL,
     nvidia: env.NVIDIA_MODEL,
+    zai: env.ZAI_MODEL,
+    cohere: env.COHERE_MODEL,
     cloudflare: env.CLOUDFLARE_AI_MODEL,
   };
   const modelList = (name: ProviderName) => (models[name] || DEFAULT_MODELS[name]).split(',').map((m) => m.trim()).filter(Boolean);

@@ -37,7 +37,7 @@ Le **même Worker** (`role`) sert l'application web (fichiers statiques de `apps
 
 ### Fournisseurs d'IA
 
-Le Worker expose une interface unique `LLMProvider.complete(messages, options) → flux de texte` avec plusieurs adaptateurs : **Gemini** (par défaut), **Groq**, **Mistral**, **Cerebras**, **OpenRouter** (modèles `:free`), **NVIDIA** et **Cloudflare Workers AI** (liaison `AI`, sans clé, dernier secours). En cas d'erreur 429, 5xx ou réseau, il bascule automatiquement sur le suivant (ordre réglé par `PROVIDER_ORDER`) ; un fournisseur qui n'a pas répondu au bout de 40 s est aussi abandonné, et un modèle au quota épuisé (429) passe en fin de liste pendant `QUOTA_COOLDOWN_S` secondes. Un fournisseur sans clé est ignoré. Les modèles se configurent dans `apps/worker/wrangler.toml` (`GEMINI_MODEL`, `GROQ_MODEL`, `MISTRAL_MODEL`, `CEREBRAS_MODEL`, `OPENROUTER_MODEL`, `NVIDIA_MODEL`, `CLOUDFLARE_AI_MODEL`), jamais dans le front.
+Le Worker expose une interface unique `LLMProvider.complete(messages, options) → flux de texte` avec plusieurs adaptateurs : **Gemini** (par défaut), **Groq**, **Mistral**, **Cerebras**, **OpenRouter** (modèles `:free`), **NVIDIA**, **Z.ai**, **Cohere** et **Cloudflare Workers AI** (liaison `AI`, sans clé, dernier secours). En cas d'erreur 429, 5xx ou réseau, il bascule automatiquement sur le suivant (ordre réglé par `PROVIDER_ORDER`) ; un fournisseur qui n'a pas répondu au bout de 40 s est aussi abandonné, et un modèle au quota épuisé (429) passe en fin de liste pendant `QUOTA_COOLDOWN_S` secondes. Un fournisseur sans clé est ignoré. Les modèles se configurent dans `apps/worker/wrangler.toml` (`GEMINI_MODEL`, `GROQ_MODEL`, `MISTRAL_MODEL`, `CEREBRAS_MODEL`, `OPENROUTER_MODEL`, `NVIDIA_MODEL`, `ZAI_MODEL`, `COHERE_MODEL`, `CLOUDFLARE_AI_MODEL`), jamais dans le front.
 
 Dans les réglages du jeu, chaque joueur peut aussi choisir :
 - **Ma propre clé (BYOK)** : la clé reste dans son navigateur et n'est envoyée au relais qu'avec chaque requête, sans jamais être enregistrée côté serveur.
@@ -97,6 +97,8 @@ Variables du front (`apps/web/.env.example`) :
 | Cerebras (secours) | [cloud.cerebras.ai](https://cloud.cerebras.ai) → API Keys | `CEREBRAS_API_KEY` |
 | OpenRouter (secours) | [openrouter.ai/keys](https://openrouter.ai/keys) | `OPENROUTER_API_KEY` |
 | NVIDIA (secours) | [build.nvidia.com](https://build.nvidia.com) → Get API Key | `NVIDIA_API_KEY` |
+| Z.ai (secours) | [z.ai/manage-apikey/apikey-list](https://z.ai/manage-apikey/apikey-list) (modèles GLM flash gratuits) | `ZAI_API_KEY` |
+| Cohere (secours) | [dashboard.cohere.com/api-keys](https://dashboard.cohere.com/api-keys) (clé d'essai) | `COHERE_API_KEY` |
 | Cloudflare Workers AI | rien à créer (liaison `AI` du Worker) | — |
 | Cloudflare | [dash.cloudflare.com](https://dash.cloudflare.com) | identifiant de compte + jeton d'API « Edit Cloudflare Workers » |
 
@@ -111,7 +113,7 @@ Tout est déployé sur le Worker Cloudflare **`role`** (nom fixé dans `apps/wor
 ```bash
 npx wrangler login                       # une fois
 cd apps/worker
-npx wrangler secret put GEMINI_API_KEY   # puis GROQ_API_KEY, MISTRAL_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY, NVIDIA_API_KEY si vous en avez
+npx wrangler secret put GEMINI_API_KEY   # puis GROQ_API_KEY, MISTRAL_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY, NVIDIA_API_KEY, ZAI_API_KEY, COHERE_API_KEY si vous en avez
 cd ../..
 npm run deploy                           # construit le front puis déploie le Worker « role »
 ```
@@ -134,9 +136,9 @@ Dans `apps/worker/wrangler.toml` (`[vars]`) :
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `PROVIDER_ORDER` | `gemini,groq,mistral,cerebras,openrouter,nvidia,cloudflare` | Ordre de bascule (les fournisseurs sans clé sont ignorés) |
+| `PROVIDER_ORDER` | `gemini,groq,mistral,cerebras,openrouter,nvidia,zai,cohere,cloudflare` | Ordre de bascule (les fournisseurs sans clé sont ignorés) |
 | `QUOTA_COOLDOWN_S` | `120` | Durée pendant laquelle un modèle au quota épuisé est essayé en dernier |
-| `GEMINI_MODEL` / `GROQ_MODEL` / `MISTRAL_MODEL` / `CEREBRAS_MODEL` / `OPENROUTER_MODEL` / `NVIDIA_MODEL` / `CLOUDFLARE_AI_MODEL` | voir le fichier | Modèles utilisés ; plusieurs modèles séparés par des virgules sont essayés dans l'ordre |
+| `GEMINI_MODEL` / `GROQ_MODEL` / `MISTRAL_MODEL` / `CEREBRAS_MODEL` / `OPENROUTER_MODEL` / `NVIDIA_MODEL` / `ZAI_MODEL` / `COHERE_MODEL` / `CLOUDFLARE_AI_MODEL` | voir le fichier | Modèles utilisés ; plusieurs modèles séparés par des virgules sont essayés dans l'ordre |
 | `GEMINI_THINKING_LEVEL` | `low` | Niveau de réflexion des modèles Gemini 3 (`minimal`, `low`, `medium`, `high`) ; retiré automatiquement si le modèle le refuse |
 | `GEMINI_THINKING_BUDGET` | vide | Ancien budget de réflexion (Gemini 2.5), ignoré si `GEMINI_THINKING_LEVEL` est rempli |
 | `ALLOWED_ORIGINS` | `*` | Origines autorisées à appeler le relais |

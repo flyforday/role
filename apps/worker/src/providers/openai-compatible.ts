@@ -7,6 +7,8 @@ export interface OpenAICompatibleConfig {
   model: string;
   baseUrl: string;
   extraHeaders?: Record<string, string>;
+  /** Champs ajoutés au corps de la requête (réglages propres au fournisseur). */
+  extraBody?: Record<string, unknown>;
 }
 
 /** Fournisseurs à l'API compatible OpenAI : Groq, OpenRouter, Mistral, Cerebras, NVIDIA… */
@@ -35,6 +37,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
         max_tokens: options.maxTokens ?? 1500,
         // Les modèles gpt-oss raisonnent avant de répondre : effort bas pour rester rapide.
         ...(this.model.includes('gpt-oss') ? { reasoning_effort: 'low' } : {}),
+        ...this.config.extraBody,
       }),
       signal: options.signal,
     });
@@ -66,4 +69,20 @@ export function cerebras(apiKey: string, model: string): OpenAICompatibleProvide
 
 export function nvidia(apiKey: string, model: string): OpenAICompatibleProvider {
   return new OpenAICompatibleProvider({ name: 'nvidia', apiKey, model, baseUrl: 'https://integrate.api.nvidia.com/v1' });
+}
+
+/** Cohere : clé d'essai gratuite sans carte (~1 000 appels/mois), via l'API compatible OpenAI. */
+export function cohere(apiKey: string, model: string): OpenAICompatibleProvider {
+  return new OpenAICompatibleProvider({ name: 'cohere', apiKey, model, baseUrl: 'https://api.cohere.ai/compatibility/v1' });
+}
+
+/** Z.ai (GLM) : modèles « flash » gratuits. La réflexion est coupée pour garder des réponses rapides. */
+export function zai(apiKey: string, model: string): OpenAICompatibleProvider {
+  return new OpenAICompatibleProvider({
+    name: 'zai',
+    apiKey,
+    model,
+    baseUrl: 'https://api.z.ai/api/paas/v4',
+    extraBody: { thinking: { type: 'disabled' } },
+  });
 }

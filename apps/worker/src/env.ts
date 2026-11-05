@@ -20,6 +20,10 @@ export interface Env {
   CEREBRAS_MODEL?: string;
   NVIDIA_API_KEY?: string;
   NVIDIA_MODEL?: string;
+  ZAI_API_KEY?: string;
+  ZAI_MODEL?: string;
+  COHERE_API_KEY?: string;
+  COHERE_MODEL?: string;
   /** Durée (s) pendant laquelle un modèle qui a répondu 429 est essayé en dernier. */
   QUOTA_COOLDOWN_S?: string;
   PROVIDER_ORDER?: string;
