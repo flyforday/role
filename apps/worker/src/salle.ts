@@ -329,16 +329,15 @@ export class Salle {
     if (JSON.stringify(payload).length > 8000) return this.send(ws, { t: 'erreur', message: 'Action trop longue.' });
     let list = await this.loadActions();
     if (list.length >= MAX_PENDING) return this.send(ws, { t: 'erreur', message: "Trop d'actions en attente." });
-    const state = await this.getBig<{ characters: Array<{ id: string; playerId?: string | null }>; npcs?: Array<{ id: string; status: string; locationId?: string }>; currentLocationId?: string }>('etat');
+    const state = await this.getBig<{ characters: Array<{ id: string; playerId?: string | null; companion?: boolean }>; currentLocationId?: string }>('etat');
     if (kind === 'map_move') {
       if (!this.onlineIds().has(meta.hostId) || await this.ctx.storage.get('mjBusy')) return this.send(ws, { t: 'erreur', message: 'Attendez que l’hôte soit connecté et que le MJ ait terminé.' });
       if (Date.now() - (meta.mapMovedAt?.[me] ?? 0) < 200) return this.send(ws, { t: 'erreur', message: 'Déplacement trop rapide. Réessayez.' });
       if (!['x', 'y', 'fromX', 'fromY'].every((k) => Number.isInteger(payload[k]) && Number(payload[k]) >= 0 && Number(payload[k]) < (k.includes('Y') || k === 'y' ? 10 : 14)) || typeof payload.locationId !== 'string' || payload.locationId !== state?.currentLocationId) {
         return this.send(ws, { t: 'erreur', message: 'Déplacement de carte invalide ou lieu obsolète.' });
       }
-      const own = state?.characters.some((c) => c.id === payload.characterId && c.playerId === me);
-      const npc = me === meta.hostId && state?.npcs?.some((n) => n.id === payload.characterId && n.status === 'vivant' && (!n.locationId || n.locationId === state.currentLocationId));
-      if (!own && !npc) return this.send(ws, { t: 'erreur', message: 'Ce pion n’est pas le vôtre.' });
+      const own = state?.characters.some((c) => c.id === payload.characterId && c.playerId === me && !c.companion);
+      if (!own) return this.send(ws, { t: 'erreur', message: 'Ce pion n’est pas le vôtre. Seul le MJ déplace les PNJ et les compagnons.' });
       if (list.some((a) => a.kind === 'map_move' && a.playerId === me)) return this.send(ws, { t: 'erreur', message: 'Un déplacement est déjà en attente.' });
       meta.mapMovedAt = { ...meta.mapMovedAt, [me]: Date.now() };
       const action: PendingAction = { id: meta.nextActionId++, playerId: me, kind, payload, at: new Date().toISOString() };

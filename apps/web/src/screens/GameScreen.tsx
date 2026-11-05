@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { exportSave } from '@veillee/prompts';
 import type { GameController } from '../lib/controller';
 import { downloadText } from '../lib/storage';
@@ -23,8 +23,6 @@ export function GameScreen({ game, onHome, extra }: { game: GameController; onHo
   const [copied, setCopied] = useState(false);
   const [panel, setPanel] = useState(false);
   const [showMap, setShowMap] = useState(true);
-  const contentRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (showMap) contentRef.current?.scrollTo({ top: 0 }); }, [showMap]);
 
   useEffect(() => {
     if (!activeId || !game.controlledIds.includes(activeId)) setActiveId(game.controlledIds[0] ?? null);
@@ -75,10 +73,14 @@ export function GameScreen({ game, onHome, extra }: { game: GameController; onHo
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <main className="flex min-h-0 flex-1 flex-col">
-          <div ref={contentRef} className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+        {showMap && (
+          <aside aria-label="Panneau de carte" className="max-h-[45dvh] shrink-0 overflow-y-auto border-b border-nuit-700 bg-nuit-900/60 p-3 lg:h-full lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r xl:w-96 2xl:w-[30rem]">
+            <SceneMap game={game} characterId={activeId} />
+          </aside>
+        )}
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8" aria-label="Récit de la partie">
             <div className="mx-auto max-w-3xl space-y-6">
-              {showMap && <SceneMap game={game} characterId={activeId} />}
               <NarrativeFeed state={state} live={game.live} />
             </div>
           </div>
