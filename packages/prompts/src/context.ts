@@ -2,6 +2,8 @@ import {
   ABILITIES,
   ABILITY_LABELS,
   currentLocation,
+  sceneMap,
+  mapTokens,
   characterRace,
   normalize,
   npcsHere,
@@ -85,6 +87,11 @@ export function stateExtract(state: GameState): string {
     );
   }
   const loc = currentLocation(state);
+  if (loc) {
+    const map = sceneMap(state);
+    out.push(`CARTE DU LIEU [${loc.id}] : 14 colonnes × 10 lignes. Pions : ${mapTokens(state, map).map((t) => `[${t.id}] ${t.name} (${t.x},${t.y})`).join(' ; ')}`);
+    out.push(`Décor (les autres cases sont du sol ou de l’herbe) : ${map.tiles.filter((t) => t.terrain !== 'sol' && t.terrain !== 'herbe').map((t) => `${t.x},${t.y}:${t.terrain}`).join(' ; ')}`);
+  }
   out.push(`Lieu actuel : ${loc ? `[${loc.id}] ${loc.name}${loc.description ? ` — ${loc.description}` : ''}` : 'inconnu'}`);
   const others = state.locations.filter((l) => l.id !== state.currentLocationId);
   if (others.length) out.push(`Lieux connus : ${others.map((l) => `[${l.id}] ${l.name}`).join(', ')}`);

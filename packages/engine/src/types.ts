@@ -1,6 +1,7 @@
 /** Types du moteur de jeu. Tout ce qui est ici est sérialisable en JSON. */
 
 import type { ScenarioState } from './scenario';
+import type { SceneMap } from './map';
 
 export const ABILITIES = ['force', 'agilite', 'endurance', 'intelligence', 'perception', 'charisme'] as const;
 export type Ability = (typeof ABILITIES)[number];
@@ -184,6 +185,8 @@ export interface GameState {
   npcs: Npc[];
   locations: Location[];
   currentLocationId: string | null;
+  /** Plans et positions partagés par lieu, absents dans les anciennes sauvegardes. */
+  maps?: Record<string, SceneMap>;
   quests: Quest[];
   flags: Record<string, FlagValue>;
   /** Résumé glissant de l'histoire. */

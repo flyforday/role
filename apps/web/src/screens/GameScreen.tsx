@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { exportSave } from '@veillee/prompts';
 import type { GameController } from '../lib/controller';
 import { downloadText } from '../lib/storage';
@@ -12,6 +12,7 @@ import { NarrativeFeed } from '../components/NarrativeFeed';
 import { SettingsDialog } from '../components/SettingsDialog';
 import { Button } from '../components/ui';
 import { slugify } from '@veillee/engine';
+import { SceneMap } from '../components/SceneMap';
 
 export function GameScreen({ game, onHome, extra }: { game: GameController; onHome: () => void; extra?: React.ReactNode }) {
   const { state } = game;
@@ -21,6 +22,9 @@ export function GameScreen({ game, onHome, extra }: { game: GameController; onHo
   const [settings, setSettings] = useState(false);
   const [copied, setCopied] = useState(false);
   const [panel, setPanel] = useState(false);
+  const [showMap, setShowMap] = useState(true);
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (showMap) contentRef.current?.scrollTo({ top: 0 }); }, [showMap]);
 
   useEffect(() => {
     if (!activeId || !game.controlledIds.includes(activeId)) setActiveId(game.controlledIds[0] ?? null);
@@ -39,6 +43,7 @@ export function GameScreen({ game, onHome, extra }: { game: GameController; onHo
           <h1 className="truncate font-titre text-2xl font-semibold text-parchemin-100">{state.campaign.title}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-1">
+          <Button variant={showMap ? 'secondary' : 'ghost'} className="text-xs" aria-pressed={showMap} onClick={() => setShowMap((v) => !v)}>{showMap ? 'Masquer la carte' : 'Carte du lieu'}</Button>
           {game.inviteUrl && (
             <Button
               variant="ghost"
@@ -71,8 +76,9 @@ export function GameScreen({ game, onHome, extra }: { game: GameController; onHo
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <main className="flex min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
-            <div className="mx-auto max-w-3xl">
+          <div ref={contentRef} className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+            <div className="mx-auto max-w-3xl space-y-6">
+              {showMap && <SceneMap game={game} characterId={activeId} />}
               <NarrativeFeed state={state} live={game.live} />
             </div>
           </div>

@@ -52,6 +52,8 @@ export const GM_OUTPUT_SCHEMA = `SCHÉMA DE SORTIE (JSON strict, la clé "narrat
     { "op": "start_combat", "enemies": [ { "name": "...", "hp": 8, "attack": 2, "defense": 11, "damage": "1d6", "initiative": 1, "xp": 25 } ] }
     { "op": "end_combat", "reason": "fuite, reddition..." }
     { "op": "scene", "scene_id": "id de la scène" } (seulement si la partie suit un SCÉNARIO : passage à la scène suivante)
+    { "op": "map_tiles", "location_id": "lieu actuel", "tiles": [{ "x": 3, "y": 2, "terrain": "sol|herbe|chemin|mur|eau|arbre|rocher|porte|table|feu" }] } (24 cases maximum par tour, coordonnées entières x de 0 à 13, y de 0 à 9)
+    { "op": "map_position", "target": "id PNJ ou compagnon", "x": 5, "y": 3 } (6 cases de trajet maximum par cible et par tour)
   ],
   "memory_notes": ["faits importants à retenir"],
   "suggested_actions": ["2 à 4 actions courtes, concrètes et différentes entre elles, et différentes de celles du tour précédent"]
@@ -59,7 +61,8 @@ export const GM_OUTPUT_SCHEMA = `SCHÉMA DE SORTIE (JSON strict, la clé "narrat
 - Utilise uniquement les identifiants présents dans l'ÉTAT DU JEU (ou crée un nouvel id court en minuscules pour un nouveau PNJ, lieu ou quête).
 - Pendant un combat, les attaques des PJ et des ennemis sont résolues par le code : raconte les résultats fournis dans « ÉVÉNEMENTS DE COMBAT » sans les modifier et sans ajouter de dégâts pour ces attaques.
 - Si les ÉVÉNEMENTS DE COMBAT annoncent une défaite, le combat est terminé : raconte ses conséquences (capture, vol, réveil plus tard) sans demander de jet ni rejouer le combat.
-- Donne de l'XP (10 à 50) quand les joueurs résolvent une situation, et 50 à 150 pour une quête accomplie.`;
+- Donne de l'XP (10 à 50) quand les joueurs résolvent une situation, et 50 à 150 pour une quête accomplie.
+- CARTE : l'origine (0,0) est en haut à gauche. Le plan initial est indicatif. Précise le décor avec map_tiles lorsque la fiction établit des obstacles ou des passages, sans bloquer une case occupée. map_position anime les déplacements des PNJ ou compagnons présents ; jamais ceux d'un joueur. Ne révèle aucun PNJ ou passage secret. Les murs, arbres, rochers et l'eau sont infranchissables. En combat, les positions restent fixes : raconte les manœuvres sans proposer de changement de carte.`;
 
 export const ROLL_RESULT_INSTRUCTIONS = `Raconte maintenant la conséquence de ce jet, en respectant strictement son résultat (réussite ou échec). Ne redemande pas le même jet. Réponds avec le même schéma JSON.`;
 

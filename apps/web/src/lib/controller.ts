@@ -1,4 +1,4 @@
-import type { GameState, RollResult, TurnMode } from '@veillee/engine';
+import type { GameState, MapMoveInput, RollResult, TurnMode } from '@veillee/engine';
 import { maybeSummarize, runTurn, type LlmCall, type PlayerAction, type TurnEvent } from '@veillee/prompts';
 
 export type LiveItem =
@@ -40,6 +40,7 @@ export interface GameController {
   canUndo: boolean;
   inviteUrl?: string;
   submit(action: PlayerAction): Promise<void>;
+  moveOnMap(move: MapMoveInput): Promise<void>;
   /** Retire une action déclarée tant que le MJ n'a pas répondu (en ligne). */
   withdraw?(id: PendingAction['id']): Promise<void>;
   undo(): Promise<void>;

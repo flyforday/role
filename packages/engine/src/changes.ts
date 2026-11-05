@@ -5,6 +5,7 @@ import { checkCombatEnd, startCombat, type EnemyInput } from './combat';
 import type { Rng } from './dice';
 import { enterScene, scenarioNpc } from './scenario';
 import { defaultRng } from './dice';
+import { inMap, MAP_TERRAINS, MAP_WIDTH, mapPath, mapTokens, sceneMap, storeSceneMap, walkable, type MapTile } from './map';
 
 /** Changements que le MJ IA peut proposer. Le code les valide avant de les appliquer. */
 export type StateChange =
@@ -20,7 +21,10 @@ export type StateChange =
   | { op: 'xp'; target: string; delta: number; reason?: string }
   | { op: 'start_combat'; enemies: EnemyInput[] }
   | { op: 'end_combat'; reason?: string }
-  | { op: 'scene'; scene_id: string };
+  | { op: 'scene'; scene_id: string }
+  | { op: 'map_tiles'; location_id: string; tiles: MapTile[] }
+  | { op: 'map_position'; target: string; x: number; y: number };
+// Les décors et positions du MJ suivent les mêmes garde-fous que les autres changements.
 
 export interface ChangeLimits {
   /** PV perdus au maximum par cible et par tour. */
@@ -32,6 +36,8 @@ export interface ChangeLimits {
   maxItemsPerTurn: number;
   maxChangesPerTurn: number;
   maxEnemies: number;
+  maxMapTilesPerTurn: number;
+  maxMapStepsPerTurn: number;
 }
 
 export const DEFAULT_LIMITS: ChangeLimits = {
@@ -42,6 +48,8 @@ export const DEFAULT_LIMITS: ChangeLimits = {
   maxItemsPerTurn: 5,
   maxChangesPerTurn: 15,
   maxEnemies: 8,
+  maxMapTilesPerTurn: 24,
+  maxMapStepsPerTurn: 6,
 };
 
 export interface Rejection {
@@ -78,10 +86,12 @@ export interface TurnBudget {
   xp: Record<string, number>;
   items: Record<string, number>;
   changes: number;
+  mapTiles: number;
+  mapSteps: Record<string, number>;
 }
 
 export function newBudget(): TurnBudget {
-  return { damage: {}, heal: {}, gold: {}, xp: {}, items: {}, changes: 0 };
+  return { damage: {}, heal: {}, gold: {}, xp: {}, items: {}, changes: 0, mapTiles: 0, mapSteps: Object.create(null) };
 }
 
 const FLAG_KEY_RE = /^[a-z0-9_]{1,48}$/;
@@ -278,6 +288,39 @@ export function applyChanges(input: GameState, changes: StateChange[], options: 
           const cond = change.add.trim().toLowerCase();
           if (!list.some((c) => normalize(c) === normalize(cond))) list.push(cond);
         }
+        break;
+      }
+      case 'map_tiles': {
+        if (!state.currentLocationId || change.location_id !== state.currentLocationId) {
+          reject(change, 'le décor doit concerner le lieu actuel'); break;
+        }
+        if (state.combat) { reject(change, 'le décor ne peut pas changer pendant un combat'); break; }
+        if (!Array.isArray(change.tiles) || !change.tiles.length || change.tiles.length + budget.mapTiles > limits.maxMapTilesPerTurn) {
+          reject(change, 'trop de cases de décor modifiées dans ce tour'); break;
+        }
+        const map = sceneMap(state), tokens = mapTokens(state, map);
+        if (change.tiles.some((t) => !t || !inMap(t) || !MAP_TERRAINS.includes(t.terrain) || (!walkable(t.terrain) && tokens.some((p) => p.x === t.x && p.y === t.y)))) {
+          reject(change, 'case invalide ou obstacle sur un personnage'); break;
+        }
+        storeSceneMap(state, map);
+        for (const tile of change.tiles) map.tiles[tile.y * MAP_WIDTH + tile.x] = { x: tile.x, y: tile.y, terrain: tile.terrain };
+        budget.mapTiles += change.tiles.length;
+        break;
+      }
+      case 'map_position': {
+        if (!state.currentLocationId) { reject(change, 'aucun lieu actuel'); break; }
+        const map = sceneMap(state), tokens = mapTokens(state, map), token = tokens.find((t) => t.id === change.target);
+        if (!token || (token.hp !== undefined && token.hp <= 0)) { reject(change, 'pion absent ou incapable de se déplacer'); break; }
+        if (token.kind === 'pc' && !state.characters.find((c) => c.id === token.id)?.companion) {
+          reject(change, 'le déplacement des joueurs appartient aux joueurs'); break;
+        }
+        if (state.combat) { reject(change, 'les positions sont verrouillées pendant le combat'); break; }
+        const remaining = limits.maxMapStepsPerTurn - (budget.mapSteps[token.id] ?? 0);
+        const path = mapPath(map, token, change, tokens.filter((t) => t.id !== token.id), remaining);
+        if (!path || !path.length) { reject(change, 'déplacement trop long, bloqué ou sans effet'); break; }
+        storeSceneMap(state, map);
+        map.positions[token.id] = { x: change.x, y: change.y };
+        budget.mapSteps[token.id] = (budget.mapSteps[token.id] ?? 0) + path.length;
         break;
       }
       case 'move': {
