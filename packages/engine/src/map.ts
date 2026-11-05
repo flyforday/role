@@ -90,12 +90,12 @@ export function mapPath(map: SceneMap, from: MapPoint, to: MapPoint, occupied: M
 }
 
 /** Déplacement libre : une case adjacente, sans IA, jamais en combat ni à travers un obstacle. */
-export function moveOnMap(input: GameState, move: MapMoveInput, controlledIds: string[], allowNpc = false): { state: GameState; error?: string } {
+export function moveOnMap(input: GameState, move: MapMoveInput, controlledIds: string[]): { state: GameState; error?: string } {
   const fail = (error: string) => ({ state: input, error });
   if (!input.currentLocationId || move.locationId !== input.currentLocationId) return fail('Le lieu a changé. Réessayez sur la carte actuelle.');
   if (input.combat) return fail('En combat, déclarez vos déplacements dans votre action au MJ.');
   const map = sceneMap(input), tokens = mapTokens(input, map), token = tokens.find((t) => t.id === move.characterId);
-  if (!token || !(controlledIds.includes(token.id) || (allowNpc && token.kind === 'npc'))) return fail('Vous ne contrôlez pas ce pion.');
+  if (!token || token.kind !== 'pc' || input.characters.find((c) => c.id === token.id)?.companion || !controlledIds.includes(token.id)) return fail('Vous ne contrôlez pas ce pion. Seul le MJ déplace les PNJ et les compagnons.');
   if (token.hp !== undefined && token.hp <= 0) return fail('Ce personnage ne peut pas se déplacer.');
   if (token.x !== move.fromX || token.y !== move.fromY) return fail('Le pion a déjà bougé. Réessayez.');
   if (Math.abs(move.x - token.x) + Math.abs(move.y - token.y) !== 1 || !mapPath(map, token, move, tokens.filter((t) => t.id !== token.id), 1)) return fail('Choisissez une case voisine libre, sans obstacle.');

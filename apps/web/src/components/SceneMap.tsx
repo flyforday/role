@@ -24,7 +24,7 @@ export function SceneMap({ game, characterId }: { game: GameController; characte
   const map = sceneMap(state), tokens = mapTokens(state, map);
   const token = tokens.find((t) => t.id === selected);
   const location = state.locations.find((l) => l.id === state.currentLocationId);
-  const canControl = (id: string) => game.controlledIds.includes(id) || (game.isHost && tokens.some((t) => t.id === id && t.kind === 'npc'));
+  const canControl = (id: string) => game.controlledIds.includes(id) && tokens.some((t) => t.id === id && t.kind === 'pc' && !state.characters.find((c) => c.id === id)?.companion);
   const enabled = !!token && canControl(token.id) && !game.busy && !state.combat;
   useEffect(() => { setSelected(characterId); }, [characterId]);
   useEffect(() => { if (!tokens.some((t) => t.id === selected)) setSelected(characterId); }, [state.currentLocationId, selected, characterId, tokens]);
@@ -47,15 +47,15 @@ export function SceneMap({ game, characterId }: { game: GameController; characte
         </div>
       </header>
       <div className="overflow-auto rounded-xl border border-nuit-600" tabIndex={0} aria-label="Plan et pions. Sélectionnez votre pion puis une case voisine.">
-        <div className="relative isolate" style={{ width: `${zoom * 100}%`, minWidth: 420 * zoom, aspectRatio: `${MAP_WIDTH}/${MAP_HEIGHT}` }}>
-          <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${MAP_WIDTH}, 1fr)` }}>
+        <div className="relative isolate" style={{ width: `${zoom * 100}%`, minWidth: 280 * zoom, aspectRatio: `${MAP_WIDTH}/${MAP_HEIGHT}` }}>
+          <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${MAP_WIDTH}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${MAP_HEIGHT}, minmax(0, 1fr))` }}>
             {map.tiles.map((tile) => {
               const terrain = TERRAIN[tile.terrain];
               const adjacent = !!token && Math.abs(tile.x - token.x) + Math.abs(tile.y - token.y) === 1;
               const free = !tokens.some((t) => t.x === tile.x && t.y === tile.y);
               return <button key={`${tile.x},${tile.y}`} aria-label={`Case ${tile.x}, ${tile.y} — ${terrain.label}`} disabled={!enabled || !adjacent || !free || !walkable(tile.terrain)}
                 onClick={() => move(tile.x, tile.y)} title={`${terrain.label} (${tile.x}, ${tile.y})`}
-                className={`border border-black/10 text-lg text-white/30 ${enabled && adjacent && free && walkable(tile.terrain) ? 'ring-1 ring-inset ring-braise-300/60 hover:brightness-150 focus:brightness-150' : ''}`}
+                className={`min-h-0 min-w-0 overflow-hidden border border-black/10 text-sm leading-none text-white/30 ${enabled && adjacent && free && walkable(tile.terrain) ? 'ring-1 ring-inset ring-braise-300/60 hover:brightness-150 focus:brightness-150' : ''}`}
                 style={{ backgroundColor: terrain.color }}><span aria-hidden="true">{terrain.symbol}</span></button>;
             })}
           </div>
@@ -72,7 +72,7 @@ export function SceneMap({ game, characterId }: { game: GameController; characte
           {([['←', -1, 0, 'gauche'], ['↑', 0, -1, 'haut'], ['↓', 0, 1, 'bas'], ['→', 1, 0, 'droite']] as const).map(([label, dx, dy, direction]) => <Button key={direction} aria-label={`Déplacer vers ${direction}`} disabled={!enabled} onClick={() => token && move(token.x + dx, token.y + dy)}>{label}</Button>)}
         </div>
       </div>
-      <p className="mt-2 text-xs text-parchemin-300">{state.combat ? 'Combat en cours : déclarez vos manœuvres dans votre action au MJ. Les positions sont verrouillées.' : 'Sélectionnez votre pion puis une case voisine éclairée, ou utilisez les flèches. L’hôte peut aussi déplacer les PNJ.'}</p>
+      <p className="mt-2 text-xs text-parchemin-300">{state.combat ? 'Combat en cours : déclarez vos manœuvres dans votre action au MJ. Les positions sont verrouillées.' : 'Sélectionnez votre pion puis une case voisine éclairée, ou utilisez les flèches. Seul le MJ déplace les PNJ et les compagnons.'}</p>
       <p className="mt-1 text-xs text-parchemin-300">Plan indicatif, précisé au fil du récit. Aucun passage secret n’est dévoilé.</p>
       <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-parchemin-200">
         {tokens.map((t) => <button key={t.id} onClick={() => setSelected(t.id)} className="hover:text-braise-300"><span className={t.kind === 'npc' ? 'text-sky-300' : t.kind === 'enemy' ? 'text-sang-400' : 'text-parchemin-100'}>●</span> {t.name}{game.controlledIds.includes(t.id) ? ' (vous)' : t.kind === 'npc' ? ' (PNJ)' : ''}</button>)}

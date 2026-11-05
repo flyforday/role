@@ -234,7 +234,7 @@ export function useOnlineGame(code: string, displayName: string): OnlineGame {
       const accepted: number[] = [], rejected: number[] = [];
       for (const req of movements) {
         const owned = next.characters.filter((c) => c.playerId === req.playerId).map((c) => c.id);
-        const result = moveOnMap(next, req.payload as MapMoveInput, owned, req.playerId === hostId);
+        const result = moveOnMap(next, req.payload as MapMoveInput, owned);
         if (result.error) { rejected.push(req.id); if (req.playerId === userId) setError(result.error); }
         else { next = result.state; accepted.push(req.id); }
       }

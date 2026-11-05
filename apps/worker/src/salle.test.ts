@@ -85,6 +85,19 @@ describe('codes de partie', () => {
 });
 
 describe('salle multijoueur', () => {
+  it('refuse les déplacements manuels de PNJ ou compagnons venant de l’hôte comme d’un invité', async () => {
+    const { salle, connect, ctx } = await setup();
+    const host = await connect(HOST, 'Léo'), ami = await connect(AMI, 'Sam');
+    const world = sampleState();
+    world.characters[0].playerId = HOST.playerId;
+    world.characters[0].companion = true;
+    await salle.webSocketMessage(host, JSON.stringify({ t: 'etat', state: world }));
+    for (const socket of [host, ami]) for (const target of ['marek', world.characters[0].id]) {
+      await salle.webSocketMessage(socket, JSON.stringify({ t: 'action', kind: 'map_move', payload: { characterId: target, locationId: world.currentLocationId, fromX: 5, fromY: 5, x: 6, y: 5 } }));
+      expect(socket.last('erreur').message).toMatch(/Seul le MJ/);
+    }
+    expect(ctx.data.get('actions')).toEqual([]);
+  });
   it('relaie un déplacement validé à deux joueurs et retrouve la carte après reconnexion', async () => {
     const { salle, connect } = await setup();
     const host = await connect(HOST, 'Léo'), ami = await connect(AMI, 'Sam');

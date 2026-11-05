@@ -79,7 +79,7 @@ export function useSoloGame(initial: GameState): GameController {
     async moveOnMap(move) {
       if (busy) return;
       const base = stateRef.current;
-      const result = moveOnMap(base, move, base.characters.filter((c) => !c.companion).map((c) => c.id), true);
+      const result = moveOnMap(base, move, base.characters.filter((c) => !c.companion).map((c) => c.id));
       if (result.error) setError(result.error);
       else { stateRef.current = result.state; setState(result.state); setError(null); }
     },

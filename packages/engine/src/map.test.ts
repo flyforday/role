@@ -15,6 +15,15 @@ function fixture() {
 const move = (extra: Partial<MapMoveInput> = {}): MapMoveInput => ({ characterId: 'pj_lyra', locationId: fixture().currentLocationId!, fromX: 2, fromY: 2, x: 3, y: 2, ...extra });
 
 describe('carte de scène', () => {
+  it('interdit tout déplacement manuel des PNJ et compagnons, même avec leurs identifiants déclarés contrôlés', () => {
+    const s = fixture();
+    const npcMove = move({ characterId: 'marek', fromX: 5, fromY: 5, x: 6, y: 5 });
+    expect(moveOnMap(s, npcMove, ['marek']).error).toMatch(/Seul le MJ/);
+    s.characters[0].companion = true;
+    expect(moveOnMap(s, move(), ['pj_lyra']).error).toMatch(/Seul le MJ/);
+    // L’opération du MJ conserve le droit de déplacer un PNJ.
+    expect(applyChanges(s, [{ op: 'map_position', target: 'marek', x: 6, y: 5 }]).rejected).toEqual([]);
+  });
   it('affiche un plan et des placements stables sans modifier les anciennes parties', () => {
     const s = sampleState(), before = structuredClone(s);
     expect(sceneMap(s).tiles).toHaveLength(MAP_WIDTH * MAP_HEIGHT);

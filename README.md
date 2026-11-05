@@ -6,7 +6,7 @@ Veillée est une application web de jeu de rôle sur table. Les joueurs décrive
 - Gratuit pour un petit groupe : uniquement des offres gratuites (Cloudflare Workers, Durable Objects et Workers AI, Gemini, Groq, Mistral, Cerebras, OpenRouter, NVIDIA).
 - Aucune clé d'API dans le navigateur : tout passe par un relais (Cloudflare Worker).
 - Interface en français.
-- Carte du lieu en vue du dessus : portraits des joueurs, PNJ présents et décor, déplacements partagés en direct. Hors combat, sélectionnez votre pion puis une case voisine libre ; l’hôte peut déplacer les PNJ. Le bouton « Masquer la carte » laisse toute la place au récit.
+- Carte du lieu fixe à gauche sur ordinateur : portraits des joueurs, PNJ présents et décor, déplacements partagés en direct. Hors combat, sélectionnez votre pion puis une case voisine libre. Seul le MJ déplace les PNJ et compagnons, jamais un joueur, même l’hôte. Le bouton « Masquer la carte » laisse toute la place au récit.
 - Création de personnage : 16 classes ou une classe personnalisée, 12 races et deux portraits cartoon par race. Race et portrait sont indépendants de la classe et n’ajoutent aucun bonus de règles. Les caractéristiques conseillées restent facultatives et modifiables.
 
 Le cahier des charges complet est dans [`docs/PROMPT_PROJET.md`](docs/PROMPT_PROJET.md).
