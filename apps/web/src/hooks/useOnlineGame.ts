@@ -3,39 +3,43 @@ import { addCharacter, createCharacter, isConscious, type GameState, type NewCha
 import type { PlayerAction, TurnEvent } from '@veillee/prompts';
 import { emptyLive, errorMessage, playTurn, reduceLive, type GameController, type LiveTurn, type PendingAction } from '../lib/controller';
 import { createLlm } from '../lib/llm';
-import {
-  fetchGame,
-  fetchMembers,
-  fetchPendingActions,
-  inviteUrl,
-  saveOnlineState,
-  setActionsStatus,
-  submitOnlineAction,
-  type ActionRow,
-  type GameRow,
-  type MemberRow,
-} from '../lib/online';
-import { supabase } from '../lib/supabase';
+import { identity, inviteUrl, rememberRoom, RoomConnection, type ConnectionStatus, type RoomAction, type RoomMember, type ServerMessage } from '../lib/salle';
 import type { UndoEntry } from '../lib/storage';
 
 export interface OnlineGame extends GameController {
+  code: string;
   loading: boolean;
   loadError: string | null;
-  members: MemberRow[];
+  status: ConnectionStatus;
+  members: RoomMember[];
   userId: string;
+  hostOnline: boolean;
   hasCharacter: boolean;
   characterRequested: boolean;
   requestCharacter(input: NewCharacterInput): Promise<void>;
+  takeOver(): void;
 }
 
+interface Room {
+  state: GameState;
+  undo: UndoEntry[];
+}
+
+/** Intervalle minimal entre deux envois du texte du MJ en cours d'écriture (ms). */
+const LIVE_THROTTLE = 120;
+
 /**
- * Partie en ligne. L'hôte est l'arbitre : son navigateur résout les tours (IA + moteur) et écrit l'état ;
- * les autres joueurs déclarent leurs actions dans la table `actions` et reçoivent tout en temps réel.
+ * Partie en ligne. Le navigateur de l'hôte est l'arbitre : il résout les tours (IA + moteur) et
+ * envoie l'état à la salle, qui le relaie aux autres joueurs en temps réel. Les autres joueurs
+ * déclarent leurs actions ; en mode « par tour », le MJ répond quand tout le monde a joué.
  */
-export function useOnlineGame(gameId: string, userId: string): OnlineGame {
-  const [row, setRow] = useState<GameRow | null>(null);
-  const [members, setMembers] = useState<MemberRow[]>([]);
-  const [actions, setActions] = useState<ActionRow[]>([]);
+export function useOnlineGame(code: string, displayName: string): OnlineGame {
+  const userId = identity().playerId;
+  const [room, setRoom] = useState<Room | null>(null);
+  const [hostId, setHostId] = useState<string | null>(null);
+  const [members, setMembers] = useState<RoomMember[]>([]);
+  const [actions, setActions] = useState<RoomAction[]>([]);
+  const [status, setStatus] = useState<ConnectionStatus>('connexion');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [live, setLive] = useState<LiveTurn | null>(null);
@@ -43,66 +47,83 @@ export function useOnlineGame(gameId: string, userId: string): OnlineGame {
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [requested, setRequested] = useState(false);
-  const channelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null);
-  const rowRef = useRef(row);
-  rowRef.current = row;
+  const connRef = useRef<RoomConnection | null>(null);
   const busyRef = useRef(false);
 
-  const isHost = !!row && row.host_id === userId;
-
-  const reload = useCallback(async () => {
-    try {
-      const [g, m, a] = await Promise.all([fetchGame(gameId), fetchMembers(gameId), fetchPendingActions(gameId)]);
-      setRow(g);
-      setMembers(m);
-      setActions(a);
-      setLoadError(null);
-    } catch (e) {
-      setLoadError(errorMessage(e));
-    }
-  }, [gameId]);
+  const isHost = hostId === userId;
 
   useEffect(() => {
-    void reload();
-    if (!supabase) return;
-    const channel = supabase
-      .channel(`partie:${gameId}`, { config: { broadcast: { self: false } } })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, () => {
-        // l'état peut être volumineux : on relit la ligne plutôt que de se fier au message
-        fetchGame(gameId).then(setRow).catch(() => {});
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'actions', filter: `game_id=eq.${gameId}` }, (p) => {
-        const a = p.new as ActionRow;
-        setActions((list) => (list.some((x) => x.id === a.id) ? list : [...list, a]));
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'actions', filter: `game_id=eq.${gameId}` }, (p) => {
-        const a = p.new as ActionRow;
-        setActions((list) => (a.status === 'en_attente' ? list : list.filter((x) => x.id !== a.id)));
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_members', filter: `game_id=eq.${gameId}` }, () => {
-        fetchMembers(gameId).then(setMembers).catch(() => {});
-      })
-      .on('broadcast', { event: 'live' }, ({ payload }) => setLive(payload as LiveTurn | null))
-      .on('broadcast', { event: 'dice' }, ({ payload }) => setDice(payload as GameController['dice']))
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') void reload();
-      });
-    channelRef.current = channel;
-    return () => {
-      void supabase?.removeChannel(channel);
-      channelRef.current = null;
+    const onMessage = (m: ServerMessage) => {
+      switch (m.t) {
+        case 'bienvenue':
+          setRoom({ state: m.state, undo: m.undo ?? [] });
+          setHostId(m.hostId);
+          setMembers(m.members);
+          setActions(m.actions);
+          setLoadError(null);
+          rememberRoom({ code, title: m.state.campaign.title, host: m.hostId === userId });
+          break;
+        case 'membres':
+          setHostId(m.hostId);
+          setMembers(m.members);
+          break;
+        case 'action':
+          setActions((list) => (list.some((a) => a.id === m.action.id) ? list : [...list, m.action]));
+          break;
+        case 'retirees':
+          setActions((list) => list.filter((a) => !m.ids.includes(a.id)));
+          break;
+        case 'etat':
+          setRoom((r) => ({ state: m.state, undo: r?.undo ?? [] }));
+          setActions((list) => list.filter((a) => !m.resolved.includes(a.id)));
+          break;
+        case 'live':
+          setLive(m.data as LiveTurn | null);
+          break;
+        case 'des':
+          setDice(m.data as GameController['dice']);
+          break;
+        case 'hote':
+          setRoom((r) => (r ? { ...r, undo: m.undo ?? [] } : r));
+          setHostId(userId);
+          break;
+        case 'erreur':
+          if (m.fatal) setLoadError(m.message);
+          else setError(m.message);
+          break;
+      }
     };
-  }, [gameId, reload]);
+    const conn = new RoomConnection(code, displayName, onMessage, setStatus);
+    connRef.current = conn;
+    const wake = () => document.visibilityState === 'visible' && conn.wake();
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('online', wake);
+    return () => {
+      document.removeEventListener('visibilitychange', wake);
+      window.removeEventListener('online', wake);
+      conn.stop();
+      connRef.current = null;
+    };
+  }, [code, displayName, userId]);
 
-  const broadcast = useCallback((event: 'live' | 'dice', payload: unknown) => {
-    void channelRef.current?.send({ type: 'broadcast', event, payload });
-  }, []);
+  const send = useCallback((m: Parameters<RoomConnection['send']>[0]) => connRef.current?.send(m), []);
 
-  const memberName = useCallback((uid: string) => members.find((m) => m.user_id === uid)?.display_name || 'Joueur', [members]);
+  /** Écrit l'état dans la salle et l'applique tout de suite chez l'hôte. */
+  const commit = useCallback(
+    (state: GameState, undo: UndoEntry[], resolved: number[] = []) => {
+      const trimmed = undo.slice(-5);
+      setRoom({ state, undo: trimmed });
+      if (resolved.length) setActions((list) => list.filter((a) => !resolved.includes(a.id)));
+      send({ t: 'etat', state, undo: trimmed, resolved });
+    },
+    [send],
+  );
+
+  const nameOf = useCallback((pid: string) => members.find((m) => m.playerId === pid)?.name || 'Joueur', [members]);
 
   /** Résolution d'un tour par l'hôte, diffusée en direct aux autres joueurs. */
   const resolve = useCallback(
-    async (base: GameRow, batch: ActionRow[], playerActions: PlayerAction[]) => {
+    async (base: Room, batch: RoomAction[], playerActions: PlayerAction[]) => {
       busyRef.current = true;
       setBusy(true);
       setError(null);
@@ -111,52 +132,58 @@ export function useOnlineGame(gameId: string, userId: string): OnlineGame {
         .filter((a) => a.kind !== 'xcard')
         .map((a) => ({ kind: 'player' as const, name: base.state.characters.find((c) => c.id === a.characterId)?.name ?? 'Joueur', text: a.text || 'attaque !' }));
       setLive(current);
-      broadcast('live', current);
+      send({ t: 'live', data: current });
       let lastSent = 0;
+      let trailing: ReturnType<typeof setTimeout> | null = null;
+      const flush = () => {
+        trailing = null;
+        lastSent = Date.now();
+        send({ t: 'live', data: current });
+      };
       const onEvent = (event: TurnEvent) => {
         current = reduceLive(current, event);
         setLive(current);
-        const now = Date.now();
-        if (event.type !== 'narration_delta' || now - lastSent > 150) {
-          lastSent = now;
-          broadcast('live', current);
+        if (event.type !== 'narration_delta') {
+          if (trailing) clearTimeout(trailing);
+          flush();
+        } else if (Date.now() - lastSent > LIVE_THROTTLE) {
+          flush();
+        } else if (!trailing) {
+          trailing = setTimeout(flush, LIVE_THROTTLE);
         }
         if (event.type === 'roll') {
-          const d = { roll: event.roll, characterName: event.characterName, key: now };
+          const d = { roll: event.roll, characterName: event.characterName, key: Date.now() };
           setDice(d);
-          broadcast('dice', d);
+          send({ t: 'des', data: d });
         }
       };
       try {
-        const result = await playTurn(base.state, playerActions, createLlm(base.id), onEvent);
-        const undo: UndoEntry[] = [...(base.undo_stack ?? []), { state: base.state, actions: playerActions }];
-        await saveOnlineState(base.id, result.state, undo);
-        await setActionsStatus(batch.map((a) => a.id), 'resolue');
-        setRow({ ...base, state: result.state, undo_stack: undo.slice(-5) });
-        setActions((list) => list.filter((a) => !batch.some((b) => b.id === a.id)));
+        const result = await playTurn(base.state, playerActions, createLlm(code), onEvent);
+        commit(result.state, [...base.undo, { state: base.state, actions: playerActions }], batch.map((a) => a.id));
       } catch (e) {
         setError(`${errorMessage(e)} — la résolution automatique est en pause ; « Résoudre le tour » pour réessayer.`);
         setPaused(true);
       } finally {
+        if (trailing) clearTimeout(trailing);
         busyRef.current = false;
         setBusy(false);
         setLive(null);
-        broadcast('live', null);
+        send({ t: 'live', data: null });
       }
     },
-    [broadcast],
+    [send, commit, code],
   );
 
   const addCharacters = useCallback(
-    async (base: GameRow, requests: ActionRow[]) => {
+    (base: Room, requests: RoomAction[]) => {
       let state = base.state;
       const accepted: number[] = [];
       const rejected: number[] = [];
       for (const req of requests) {
         try {
-          if (state.characters.some((c) => c.playerId === req.user_id)) throw new Error('déjà un personnage');
+          if (state.characters.some((c) => c.playerId === req.playerId)) throw new Error('déjà un personnage');
           const input = req.payload as NewCharacterInput;
-          const pc = createCharacter({ ...input, id: undefined, playerId: req.user_id, playerName: memberName(req.user_id) });
+          const pc = createCharacter({ ...input, id: undefined, playerId: req.playerId, playerName: nameOf(req.playerId) });
           state = addCharacter(state, pc);
           state.log.push({ id: `arrivee_${pc.id}`, turn: state.turn, at: new Date().toISOString(), kind: 'system', text: `${pc.name} (${pc.concept}) rejoint le groupe.` });
           accepted.push(req.id);
@@ -164,150 +191,126 @@ export function useOnlineGame(gameId: string, userId: string): OnlineGame {
           rejected.push(req.id);
         }
       }
-      state = { ...state, updatedAt: new Date().toISOString() };
-      await saveOnlineState(base.id, state, base.undo_stack ?? []);
-      await setActionsStatus(accepted, 'resolue');
-      await setActionsStatus(rejected, 'rejetee');
-      setRow({ ...base, state });
-      setActions((list) => list.filter((a) => !requests.includes(a)));
+      commit({ ...state, updatedAt: new Date().toISOString() }, base.undo, accepted);
+      if (rejected.length) {
+        send({ t: 'retirer', ids: rejected, reason: 'rejetee' });
+        setActions((list) => list.filter((a) => !rejected.includes(a.id)));
+      }
     },
-    [memberName],
+    [nameOf, commit, send],
   );
 
-  const toPlayerAction = (a: ActionRow): PlayerAction => a.payload as PlayerAction;
+  const state = room?.state ?? null;
+  const turnActions = useMemo(() => actions.filter((a) => a.kind !== 'character'), [actions]);
 
-  /** Seules les actions portant sur un personnage du joueur qui les envoie sont acceptées. */
-  const legit = useCallback((a: ActionRow, state: GameState) => {
-    const p = a.payload as PlayerAction;
-    const pc = state.characters.find((c) => c.id === p.characterId);
-    return !!pc && pc.playerId === a.user_id;
-  }, []);
+  /**
+   * Personnages joueurs conscients qui n'ont pas encore déclaré d'action ce tour-ci. Un joueur
+   * déconnecté ne bloque pas la table : on n'attend que ceux qui sont là.
+   */
+  const waitingFor = useMemo(() => {
+    if (!state || state.turnMode !== 'tour' || !turnActions.length) return [];
+    const online = new Set(members.filter((m) => m.online).map((m) => m.playerId));
+    online.add(userId);
+    return state.characters.filter(
+      (c) => c.playerId && online.has(c.playerId) && isConscious(c) && !turnActions.some((a) => (a.payload as PlayerAction).characterId === c.id),
+    );
+  }, [state, turnActions, members, userId]);
 
   // Boucle de l'hôte : traite la file d'actions.
   useEffect(() => {
-    if (!isHost || !row || busyRef.current) return;
+    if (!isHost || !room || busyRef.current || status !== 'connecte') return;
     const charReqs = actions.filter((a) => a.kind === 'character');
-    if (charReqs.length) {
-      busyRef.current = true;
-      void addCharacters(row, charReqs).finally(() => (busyRef.current = false));
-      return;
-    }
-    const turnActions = actions.filter((a) => a.kind !== 'character');
-    const bogus = turnActions.filter((a) => !legit(a, row.state));
-    if (bogus.length) {
-      void setActionsStatus(bogus.map((a) => a.id), 'rejetee');
-      setActions((list) => list.filter((a) => !bogus.includes(a)));
-      return;
-    }
+    if (charReqs.length) return addCharacters(room, charReqs);
     if (paused || !turnActions.length) return;
     const xcard = turnActions.find((a) => a.kind === 'xcard');
     if (xcard) {
-      void resolve(row, [xcard], [toPlayerAction(xcard)]);
+      void resolve(room, [xcard], [xcard.payload as PlayerAction]);
       return;
     }
-    if (row.state.turnMode === 'libre') {
+    if (room.state.turnMode === 'libre') {
       const first = turnActions[0];
-      void resolve(row, [first], [toPlayerAction(first)]);
+      void resolve(room, [first], [first.payload as PlayerAction]);
       return;
     }
-    // mode par tour : on attend que chaque personnage joueur conscient ait déclaré une action
-    const waitingFor = row.state.characters.filter((c) => c.playerId && isConscious(c) && !turnActions.some((a) => (a.payload as PlayerAction).characterId === c.id));
-    if (waitingFor.length === 0) void resolve(row, turnActions, dedupe(turnActions).map(toPlayerAction));
-  }, [isHost, row, actions, paused, resolve, addCharacters, legit]);
+    if (waitingFor.length === 0) void resolve(room, turnActions, turnActions.map((a) => a.payload as PlayerAction));
+  }, [isHost, room, actions, turnActions, waitingFor, paused, status, resolve, addCharacters]);
 
-  const state = row?.state ?? null;
   const controlledIds = useMemo(() => (state ? state.characters.filter((c) => c.playerId === userId).map((c) => c.id) : []), [state, userId]);
 
   const pending: PendingAction[] = useMemo(
     () =>
-      actions
-        .filter((a) => a.kind !== 'character')
-        .map((a) => {
-          const p = a.payload as PlayerAction;
-          return { id: a.id, characterId: p.characterId, characterName: state?.characters.find((c) => c.id === p.characterId)?.name ?? '?', text: p.text, kind: p.kind };
-        }),
-    [actions, state],
+      turnActions.map((a) => {
+        const p = a.payload as PlayerAction;
+        return { id: a.id, characterId: p.characterId, characterName: state?.characters.find((c) => c.id === p.characterId)?.name ?? '?', text: p.text, kind: p.kind };
+      }),
+    [turnActions, state],
   );
 
-  const undoStack = row?.undo_stack ?? [];
+  const undo = room?.undo ?? [];
+  const hostOnline = members.some((m) => m.playerId === hostId && m.online);
 
-  const controller: OnlineGame = {
+  return {
     mode: 'online',
+    code,
     state: state ?? (placeholder as GameState),
-    busy,
+    // pendant que l'hôte résout un tour, les autres voient la narration en direct et attendent
+    busy: isHost ? busy : !!live,
     live,
     dice,
     error,
     isHost,
     controlledIds,
     pending: state?.turnMode === 'tour' ? pending : busy ? [] : pending,
-    canUndo: isHost && undoStack.length > 0 && !busy,
-    inviteUrl: row ? inviteUrl(row.invite_code) : undefined,
-    loading: !row && !loadError,
+    waitingFor: waitingFor.map((c) => c.name),
+    canUndo: isHost && undo.length > 0 && !busy,
+    inviteUrl: inviteUrl(code),
+    loading: !room && !loadError,
     loadError,
+    status,
     members,
     userId,
+    hostOnline,
     hasCharacter: controlledIds.length > 0,
-    characterRequested: requested || actions.some((a) => a.kind === 'character' && a.user_id === userId),
+    characterRequested: requested || actions.some((a) => a.kind === 'character' && a.playerId === userId),
     async submit(action) {
       setError(null);
-      try {
-        await submitOnlineAction(gameId, action.kind, action);
-      } catch (e) {
-        setError(errorMessage(e));
-      }
+      send({ t: 'action', kind: action.kind, payload: action });
+    },
+    async withdraw(id) {
+      send({ t: 'retirer', ids: [Number(id)] });
     },
     async requestCharacter(input) {
-      try {
-        await submitOnlineAction(gameId, 'character', input);
-        setRequested(true);
-      } catch (e) {
-        setError(errorMessage(e));
-      }
+      send({ t: 'action', kind: 'character', payload: input });
+      setRequested(true);
+    },
+    takeOver() {
+      send({ t: 'prendre-main' });
     },
     async undo() {
-      if (!row || !undoStack.length) return;
-      const last = undoStack[undoStack.length - 1];
-      const stack = undoStack.slice(0, -1);
-      await saveOnlineState(row.id, last.state, stack);
-      setRow({ ...row, state: last.state, undo_stack: stack });
+      if (!room || !undo.length) return;
+      const last = undo[undo.length - 1];
+      commit(last.state, undo.slice(0, -1));
     },
     async regenerate() {
-      if (!row || !undoStack.length) return;
-      const last = undoStack[undoStack.length - 1];
-      const base = { ...row, state: last.state, undo_stack: undoStack.slice(0, -1) };
-      setRow(base);
-      await resolve(base, [], last.actions);
+      if (!room || !undo.length) return;
+      const last = undo[undo.length - 1];
+      await resolve({ state: last.state, undo: undo.slice(0, -1) }, [], last.actions);
     },
     async replaceState(next) {
-      if (!row) return;
-      const stack = [...undoStack, { state: row.state, actions: [] }];
-      const s = { ...next, updatedAt: new Date().toISOString() };
-      await saveOnlineState(row.id, s, stack);
-      setRow({ ...row, state: s, undo_stack: stack.slice(-5) });
+      if (!room) return;
+      commit({ ...next, updatedAt: new Date().toISOString() }, [...undo, { state: room.state, actions: [] }]);
     },
     async setTurnMode(mode: TurnMode) {
-      if (!row) return;
-      const s = { ...row.state, turnMode: mode };
-      await saveOnlineState(row.id, s, undoStack);
-      setRow({ ...row, state: s });
+      if (!room) return;
+      commit({ ...room.state, turnMode: mode }, undo);
     },
     async resolvePending() {
-      if (!row || busyRef.current) return;
+      if (!room || busyRef.current) return;
       setPaused(false);
-      const turnActions = actions.filter((a) => a.kind !== 'character' && legit(a, row.state));
-      if (turnActions.length) await resolve(row, turnActions, dedupe(turnActions).map(toPlayerAction));
+      if (turnActions.length) await resolve(room, turnActions, turnActions.map((a) => a.payload as PlayerAction));
     },
     dismissError: () => setError(null),
   };
-  return controller;
-}
-
-/** Une seule action par personnage dans un tour : on garde la plus récente. */
-function dedupe(list: ActionRow[]): ActionRow[] {
-  const byPc = new Map<string, ActionRow>();
-  for (const a of list) byPc.set((a.payload as PlayerAction).characterId, a);
-  return [...byPc.values()];
 }
 
 const placeholder = {

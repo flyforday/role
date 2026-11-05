@@ -2,7 +2,7 @@ name: Déploiement Cloudflare
 
 # Déploie le Worker « role » (relais IA + application web) puis le front seul sur Pages (veillee-role.pages.dev). Lancement manuel ou à chaque push sur main.
 # Secrets GitHub requis : CLOUDFLARE_API_TOKEN (droit « Workers Scripts: Edit ») et CLOUDFLARE_ACCOUNT_ID.
-# Variables GitHub facultatives pour le multijoueur : VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY.
+# Le multijoueur (salles à code) fait partie du Worker « role » : aucune variable supplémentaire.
 on:
   workflow_dispatch:
   push:
@@ -26,8 +26,6 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
           # Le front publié sur Pages appelle le relais du Worker « role ».
           VITE_WORKER_URL: https://role.leo-lemaire.workers.dev
       - name: Vérifier la présence du jeton Cloudflare

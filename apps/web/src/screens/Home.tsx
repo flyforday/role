@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { importSave } from '@veillee/prompts';
-import { Button, Card, Input, Spinner } from '../components/ui';
+import { Button, Card, Input } from '../components/ui';
 import { SettingsDialog } from '../components/SettingsDialog';
 import { deleteGame, listSaves, saveGame, type SaveSummary } from '../lib/storage';
-import { supabase, sendMagicLink, signOut, useSession } from '../lib/supabase';
-import { listMyGames } from '../lib/online';
+import { forgetRoom, isValidCode, normalizeCode, recentRooms, type RecentRoom } from '../lib/salle';
 import { useSettings } from '../lib/settings';
 import { navigate } from '../router';
 
@@ -102,84 +101,63 @@ export function Home() {
 }
 
 function OnlinePanel() {
-  const { session, loading } = useSession();
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [games, setGames] = useState<Array<{ id: string; title: string; updated_at: string; host_id: string }> | null>(null);
-
-  useEffect(() => {
-    if (!session) return;
-    listMyGames().then(setGames).catch((e) => setError((e as Error).message));
-  }, [session]);
-
-  if (!supabase) {
-    return (
-      <Card title="Jouer entre amis">
-        <p className="text-parchemin-300">
-          Le multijoueur n'est pas encore configuré sur ce déploiement. Renseignez <code className="text-braise-300">VITE_SUPABASE_URL</code> et{' '}
-          <code className="text-braise-300">VITE_SUPABASE_ANON_KEY</code> (voir le README) pour créer des parties partagées par lien d'invitation.
-        </p>
-      </Card>
-    );
-  }
-  if (loading) return <Card title="Jouer entre amis"><Spinner label="Connexion…" /></Card>;
-  if (!session) {
-    return (
-      <Card title="Jouer entre amis">
-        <p className="mb-3 text-parchemin-300">Connectez-vous avec un lien magique envoyé par e-mail pour créer ou rejoindre une partie en ligne.</p>
-        {sent ? (
-          <p className="text-mousse-400">Lien envoyé à {email}. Ouvrez-le depuis ce navigateur.</p>
-        ) : (
-          <form
-            className="flex gap-2"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              try {
-                await sendMagicLink(email);
-                setSent(true);
-              } catch (err) {
-                setError((err as Error).message);
-              }
-            }}
-          >
-            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="vous@exemple.fr" />
-            <Button variant="primary" type="submit">
-              Recevoir le lien
-            </Button>
-          </form>
-        )}
-        {error && <p className="mt-2 text-sm text-sang-400">{error}</p>}
-      </Card>
-    );
-  }
+  const [code, setCode] = useState('');
+  const [rooms, setRooms] = useState<RecentRoom[]>(recentRooms);
+  const valid = isValidCode(code);
   return (
-    <Card
-      title="Jouer entre amis"
-      actions={
-        <Button variant="ghost" className="px-2 py-1 text-xs" onClick={signOut}>
-          Se déconnecter
+    <Card title="Jouer entre amis">
+      <p className="mb-3 text-sm text-parchemin-300">
+        Créez une partie et donnez son code à vos amis : chacun déclare son action, puis le MJ raconte la suite pour tout le groupe. Aucun compte à créer.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" onClick={() => navigate('/nouvelle-en-ligne')}>
+          Créer une partie à plusieurs
         </Button>
-      }
-    >
-      <p className="mb-3 text-xs text-parchemin-300">Connecté : {session.user.email}</p>
-      <Button variant="primary" onClick={() => navigate('/nouvelle-en-ligne')}>
-        Créer une partie en ligne
-      </Button>
-      <ul className="mt-3 divide-y divide-nuit-700">
-        {games?.map((g) => (
-          <li key={g.id} className="py-2">
-            <button className="text-left" onClick={() => navigate(`/en-ligne/${g.id}`)}>
-              <p className="font-medium text-parchemin-100 hover:text-braise-300">{g.title}</p>
-              <p className="text-xs text-parchemin-300">
-                {g.host_id === session.user.id ? 'Vous êtes l’hôte' : 'Invité'} · {new Date(g.updated_at).toLocaleDateString('fr-FR')}
-              </p>
-            </button>
-          </li>
-        ))}
-        {games?.length === 0 && <li className="py-2 text-sm text-parchemin-300">Aucune partie en ligne. Créez-en une ou ouvrez un lien d'invitation.</li>}
-      </ul>
-      {error && <p className="mt-2 text-sm text-sang-400">{error}</p>}
+      </div>
+      <form
+        className="mt-3 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid) navigate(`/rejoindre/${code}`);
+        }}
+      >
+        <Input
+          value={code}
+          onChange={(e) => setCode(normalizeCode(e.target.value))}
+          placeholder="Code (ex. K7QH2M)"
+          aria-label="Code de la partie"
+          className="font-mono uppercase tracking-[0.2em]"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <Button type="submit" disabled={!valid}>
+          Rejoindre
+        </Button>
+      </form>
+      {rooms.length > 0 && (
+        <ul className="mt-3 divide-y divide-nuit-700">
+          {rooms.map((r) => (
+            <li key={r.code} className="flex items-center justify-between gap-2 py-2">
+              <button className="min-w-0 text-left" onClick={() => navigate(`/en-ligne/${r.code}`)}>
+                <p className="truncate font-medium text-parchemin-100 hover:text-braise-300">{r.title}</p>
+                <p className="text-xs text-parchemin-300">
+                  <span className="font-mono tracking-widest">{r.code}</span> · {r.host ? 'vous êtes l’hôte' : 'invité'} · {new Date(r.at).toLocaleDateString('fr-FR')}
+                </p>
+              </button>
+              <Button
+                variant="ghost"
+                className="px-2 py-1 text-xs"
+                onClick={() => {
+                  forgetRoom(r.code);
+                  setRooms(recentRooms());
+                }}
+              >
+                Oublier
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }

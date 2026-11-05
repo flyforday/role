@@ -1,4 +1,6 @@
 export interface Env {
+  /** Salles multijoueur (Durable Object « Salle »). */
+  SALLES?: DurableObjectNamespace;
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
   GEMINI_THINKING_BUDGET?: string;
