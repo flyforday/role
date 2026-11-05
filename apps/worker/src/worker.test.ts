@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { handle } from './index';
 import { RateLimiter } from './ratelimit';
 import type { Env } from './env';
+import { resetQuotaMemory } from './fallback';
 
 function sse(events: unknown[]): Response {
   const body = events.map((e) => `data: ${typeof e === 'string' ? e : JSON.stringify(e)}\n\n`).join('');
@@ -36,7 +37,10 @@ const messages = [
   { role: 'user', content: 'Je frappe à la porte.' },
 ];
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetQuotaMemory();
+});
 
 describe('relais IA', () => {
   it('relaie Gemini en flux texte', async () => {
@@ -177,6 +181,112 @@ describe('relais IA', () => {
     const body = (await res.json()) as { providers: Array<{ name: string }> };
     expect(body.providers.map((p: { name: string }) => p.name)).toEqual(['gemini', 'groq']);
     expect(JSON.stringify(body)).not.toContain('key');
+  });
+});
+
+describe('fournisseurs gratuits supplémentaires', () => {
+  const tous: Env = {
+    ...env,
+    MISTRAL_API_KEY: 'mistral-key-123',
+    CEREBRAS_API_KEY: 'csk-key-123456',
+    NVIDIA_API_KEY: 'nvapi-key-1234',
+    OPENROUTER_API_KEY: 'sk-or-key-1234',
+  };
+
+  it('ignore les fournisseurs sans clé et ajoute Workers AI s’il est lié', async () => {
+    const ai = { run: vi.fn() };
+    const res = await handle(new Request('https://relais.test/api/health'), { GEMINI_API_KEY: 'g-key-123456', CEREBRAS_API_KEY: 'csk-1234567', AI: ai }, new RateLimiter());
+    const body = (await res.json()) as { providers: Array<{ name: string }> };
+    expect([...new Set(body.providers.map((p) => p.name))]).toEqual(['gemini', 'cerebras', 'cloudflare']);
+  });
+
+  it('bascule de Gemini à Groq, Mistral puis Cerebras quand les quotas sont épuisés', async () => {
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      urls.push(url);
+      if (url.includes('cerebras')) {
+        expect((init.headers as Record<string, string>).authorization).toBe('Bearer csk-key-123456');
+        return openai(['Cerebras', ' répond']);
+      }
+      return new Response('quota', { status: 429 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await handle(chat({ messages }), { ...tous, GEMINI_MODEL: 'g1', GROQ_MODEL: 'q1', MISTRAL_MODEL: 'm1' }, new RateLimiter());
+    expect(res.headers.get('x-provider')).toBe('cerebras/gpt-oss-120b');
+    expect(await res.text()).toBe('Cerebras répond');
+    expect(urls.map((u) => new URL(u).host)).toEqual([
+      'generativelanguage.googleapis.com',
+      'api.groq.com',
+      'api.mistral.ai',
+      'api.cerebras.ai',
+    ]);
+  });
+
+  it('essaie en dernier, pendant un moment, les modèles dont le quota est épuisé', async () => {
+    let geminiCalls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('googleapis')) {
+          geminiCalls++;
+          return new Response('quota', { status: 429 });
+        }
+        return openai(['ok']);
+      }),
+    );
+    const rl = new RateLimiter();
+    await handle(chat({ messages }), { ...env, GEMINI_MODEL: 'g1' }, rl);
+    const second = await handle(chat({ messages }), { ...env, GEMINI_MODEL: 'g1' }, rl);
+    expect(second.headers.get('x-provider')).toMatch(/^groq\//);
+    expect(second.headers.get('x-provider-failures')).toBeNull();
+    expect(geminiCalls).toBe(1);
+  });
+
+  it('utilise Cloudflare Workers AI (sans clé) en dernier secours', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('quota', { status: 429 })));
+    const enc = new TextEncoder();
+    const ai = {
+      run: vi.fn(async (_model: string, _inputs: Record<string, unknown>) =>
+        new ReadableStream<Uint8Array>({
+          start(c) {
+            c.enqueue(enc.encode('data: {"response":"Le feu"}\n\ndata: {"response":" crépite"}\n\ndata: [DONE]\n\n'));
+            c.close();
+          },
+        }),
+      ),
+    };
+    const res = await handle(chat({ messages }), { ...tous, AI: ai }, new RateLimiter());
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-provider')).toBe('cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast');
+    expect(await res.text()).toBe('Le feu crépite');
+    expect(ai.run.mock.calls[0][1]).toMatchObject({ messages, stream: true });
+  });
+
+  it('passe au modèle Workers AI suivant quand l’allocation gratuite est épuisée', async () => {
+    const ai = {
+      run: vi.fn(async (model: string) => {
+        if (model.includes('llama')) throw new Error('4006: you have used up your daily free allocation of 10,000 neurons');
+        return new ReadableStream<Uint8Array>({
+          start(c) {
+            c.enqueue(new TextEncoder().encode('data: {"response":"ok"}\n\n'));
+            c.close();
+          },
+        });
+      }),
+    };
+    const res = await handle(chat({ messages }), { AI: ai }, new RateLimiter());
+    expect(res.headers.get('x-provider')).toBe('cloudflare/@cf/mistralai/mistral-small-3.1-24b-instruct');
+    expect(res.headers.get('x-provider-failures')).toBe('cloudflare @cf/meta/llama-3.3-70b-instruct-fp8-fast: 429');
+  });
+
+  it('accepte une clé personnelle Mistral mais pas Workers AI', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => openai(['ok']));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await handle(chat({ messages, byok: { provider: 'mistral', apiKey: 'perso-mistral-1' } }), env, new RateLimiter());
+    expect(res.headers.get('x-provider')).toBe('mistral/mistral-medium-latest');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.mistral.ai/v1/chat/completions');
+    const refused = await handle(chat({ messages, byok: { provider: 'cloudflare', apiKey: 'xxxxxxxxxx' } }), env, new RateLimiter());
+    expect(refused.status).toBe(400);
   });
 });
 

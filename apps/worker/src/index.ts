@@ -1,7 +1,7 @@
 import { intVar, type Env } from './env';
 import { completeWithFallback } from './fallback';
 import { RateLimiter } from './ratelimit';
-import { configuredProviders, DEFAULT_MODELS, makeProvider, PROVIDER_NAMES, type ProviderName } from './providers/registry';
+import { BYOK_PROVIDERS, configuredProviders, DEFAULT_MODELS, makeProvider, type ByokProviderName } from './providers/registry';
 import { ProviderError, type ChatMessage, type LLMProvider } from './providers/types';
 import { synthesize, validateTtsBody } from './tts';
 import { isValidCode, normalizeCode, randomCode, MAX_STATE_CHARS } from './salle';
@@ -19,7 +19,7 @@ interface ChatBody {
   temperature?: number;
   maxTokens?: number;
   gameId?: string;
-  byok?: { provider: ProviderName; apiKey: string; model?: string };
+  byok?: { provider: ByokProviderName; apiKey: string; model?: string };
 }
 
 export default {
@@ -68,7 +68,7 @@ export async function handle(request: Request, env: Env, rl: RateLimiter): Promi
       temperature: body.temperature,
       maxTokens: Math.min(body.maxTokens ?? 1500, intVar(env.MAX_OUTPUT_TOKENS, 1500)),
       signal: request.signal,
-    });
+    }, intVar(env.QUOTA_COOLDOWN_S, 120) * 1000);
     const encoder = new TextEncoder();
     const bytes = result.stream.pipeThrough(
       new TransformStream<string, Uint8Array>({ transform: (chunk, c) => c.enqueue(encoder.encode(chunk)) }),
@@ -166,10 +166,10 @@ export function validateBody(raw: unknown): ChatBody {
   let byok: ChatBody['byok'];
   if (b.byok) {
     const k = b.byok as Record<string, unknown>;
-    if (!PROVIDER_NAMES.includes(k.provider as ProviderName) || typeof k.apiKey !== 'string' || k.apiKey.length < 8 || k.apiKey.length > 300) {
+    if (!(BYOK_PROVIDERS as readonly string[]).includes(k.provider as string) || typeof k.apiKey !== 'string' || k.apiKey.length < 8 || k.apiKey.length > 300) {
       throw new Error('clé personnelle invalide');
     }
-    byok = { provider: k.provider as ProviderName, apiKey: k.apiKey, model: typeof k.model === 'string' && k.model ? k.model.slice(0, 120) : undefined };
+    byok = { provider: k.provider as ByokProviderName, apiKey: k.apiKey, model: typeof k.model === 'string' && k.model ? k.model.slice(0, 120) : undefined };
   }
   return {
     messages,

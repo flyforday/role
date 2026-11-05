@@ -9,7 +9,7 @@ export interface OpenAICompatibleConfig {
   extraHeaders?: Record<string, string>;
 }
 
-/** Fournisseurs à l'API compatible OpenAI : Groq, OpenRouter… */
+/** Fournisseurs à l'API compatible OpenAI : Groq, OpenRouter, Mistral, Cerebras, NVIDIA… */
 export class OpenAICompatibleProvider implements LLMProvider {
   readonly name: string;
   readonly model: string;
@@ -54,4 +54,16 @@ export function openrouter(apiKey: string, model: string): OpenAICompatibleProvi
     baseUrl: 'https://openrouter.ai/api/v1',
     extraHeaders: { 'HTTP-Referer': 'https://github.com/flyforday/role', 'X-Title': 'Veillee' },
   });
+}
+
+export function mistral(apiKey: string, model: string): OpenAICompatibleProvider {
+  return new OpenAICompatibleProvider({ name: 'mistral', apiKey, model, baseUrl: 'https://api.mistral.ai/v1' });
+}
+
+export function cerebras(apiKey: string, model: string): OpenAICompatibleProvider {
+  return new OpenAICompatibleProvider({ name: 'cerebras', apiKey, model, baseUrl: 'https://api.cerebras.ai/v1' });
+}
+
+export function nvidia(apiKey: string, model: string): OpenAICompatibleProvider {
+  return new OpenAICompatibleProvider({ name: 'nvidia', apiKey, model, baseUrl: 'https://integrate.api.nvidia.com/v1' });
 }

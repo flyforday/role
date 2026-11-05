@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 export type ProviderChoice = 'relais' | 'byok' | 'webllm' | 'demo';
-export type ByokProvider = 'gemini' | 'groq' | 'openrouter';
+export type ByokProvider = 'gemini' | 'groq' | 'mistral' | 'cerebras' | 'openrouter' | 'nvidia';
 
 export interface Settings {
   provider: ProviderChoice;
